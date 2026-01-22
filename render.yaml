@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: perseo-api-server
+    runtime: node
+    plan: free # Puedes cambiarlo a 'starter' si el procesamiento de imágenes consume mucha RAM
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PERSEO_API_KEY
+        sync: false # Correcto: Esto obliga a que la pongas manualmente en el dashboard por seguridad
+      - key: API_BASE_URL
+        value: https://accesoalnusan.app/api
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000 # Puerto estándar de Render
