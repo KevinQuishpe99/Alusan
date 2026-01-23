@@ -495,12 +495,13 @@ app.get('/api/productos/:id', async (req, res) => {
         const productosConImagenRaw = await Promise.all(
             productosRaw.map((prod, index) => 
                 limitadorImagenes(async () => {
+                    // Definir productoId ANTES del try para que esté disponible en el catch
+                    const productoId = prod.productosid || prod.productoid || prod.id;
+                    
                     try {
-                        const productoId = prod.productosid || prod.productoid || prod.id;
-                        
                         if (!productoId) {
                             contadorPeticiones++;
-                            console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId || 'SIN_ID'} - Sin ID, omitiendo`);
+                            console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=SIN_ID - Sin ID, omitiendo`);
                             return { producto: prod, imagenBase64: null, productoId: null };
                         }
 
@@ -562,36 +563,38 @@ app.get('/api/productos/:id', async (req, res) => {
                         };
                     } catch (err) {
                         contadorFallidas++;
-                        console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Error: ${err.message || 'Error desconocido'}`);
+                        console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId || 'SIN_ID'} - Error: ${err.message || 'Error desconocido'}`);
                         
                         // Si falla la consulta, intentar una vez más antes de devolver null
                         // Esto asegura que las variantes tengan su imagen
-                        try {
-                            console.log(`   🔄 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Reintentando...`);
-                            const resImgRetry = await axios.post(urlImagen, {
-                                "api_key": PERSEO_API_KEY,
-                                "productosid": productoId
-                            }, {
-                                timeout: IMAGE_REQUEST_TIMEOUT
-                            });
-                            
-                            if (resImgRetry.data?.informacion === true && 
-                                resImgRetry.data?.productos_imagenes?.[0]?.imagen) {
-                                contadorExitosas++;
-                                contadorFallidas--;
-                                console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida en retry`);
-                                return { 
-                                    producto: prod, 
-                                    imagenBase64: resImgRetry.data.productos_imagenes[0].imagen, 
-                                    productoId: productoId 
-                                };
+                        if (productoId) {
+                            try {
+                                console.log(`   🔄 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Reintentando...`);
+                                const resImgRetry = await axios.post(urlImagen, {
+                                    "api_key": PERSEO_API_KEY,
+                                    "productosid": productoId
+                                }, {
+                                    timeout: IMAGE_REQUEST_TIMEOUT
+                                });
+                                
+                                if (resImgRetry.data?.informacion === true && 
+                                    resImgRetry.data?.productos_imagenes?.[0]?.imagen) {
+                                    contadorExitosas++;
+                                    contadorFallidas--;
+                                    console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida en retry`);
+                                    return { 
+                                        producto: prod, 
+                                        imagenBase64: resImgRetry.data.productos_imagenes[0].imagen, 
+                                        productoId: productoId 
+                                    };
+                                }
+                            } catch (retryErr) {
+                                // Si el retry también falla, devolver null
+                                console.log(`   ❌ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId || 'SIN_ID'} - Retry falló: ${retryErr.message || 'Error desconocido'}`);
                             }
-                        } catch (retryErr) {
-                            // Si el retry también falla, devolver null
-                            console.log(`   ❌ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Retry falló: ${retryErr.message || 'Error desconocido'}`);
                         }
                         
-                        return { producto: prod, imagenBase64: null, productoId: productoId };
+                        return { producto: prod, imagenBase64: null, productoId: productoId || null };
                     }
                 })
             )
