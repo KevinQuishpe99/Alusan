@@ -15,6 +15,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Middleware de logging para todas las peticiones HTTP entrantes
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`\n🌐 PETICIÓN HTTP ENTRANTE [${timestamp}]`);
+    console.log(`   📍 Método: ${req.method}`);
+    console.log(`   🔗 URL: ${req.originalUrl || req.url}`);
+    console.log(`   🌍 IP: ${req.ip || req.connection.remoteAddress}`);
+    next();
+});
+
 // Configuración desde variables de entorno
 const PERSEO_API_KEY = process.env.PERSEO_API_KEY || "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-";
 const API_BASE_URL = process.env.API_BASE_URL || "https://accesoalnusan.app/api";
@@ -58,10 +68,22 @@ app.get('/api/categorias/list', async (req, res) => {
 
     try {
         // Consultar a Perseo
-        const response = await axios.post(`${API_BASE_URL}/productos_categorias_consulta`, {
+        const urlCategorias = `${API_BASE_URL}/productos_categorias_consulta`;
+        console.log(`\n📡 PETICIÓN INTERNA: Consulta de categorías`);
+        console.log(`   🔗 URL: ${urlCategorias}`);
+        console.log(`   📍 Origen: GET /api/categorias/list`);
+        console.log(`   ⏱️  Iniciando petición...`);
+        
+        const inicioConsulta = Date.now();
+        const response = await axios.post(urlCategorias, {
             "api_key": PERSEO_API_KEY,
             "descripcion": ""
         });
+        
+        const tiempoConsulta = ((Date.now() - inicioConsulta) / 1000).toFixed(2);
+        console.log(`   ✅ Respuesta recibida en ${tiempoConsulta}s`);
+        console.log(`   📊 Status: ${response.status}`);
+        console.log(`   📦 Categorías encontradas: ${response.data?.categorias?.length || 0}`);
 
         if (response.data && response.data.categorias) {
             // Formato simplificado: solo ID y nombre
@@ -113,10 +135,22 @@ app.get('/api/categorias', async (req, res) => {
 
     try {
         // 2. Si no hay caché, consultar a Perseo
-        const response = await axios.post(`${API_BASE_URL}/productos_categorias_consulta`, {
+        const urlCategorias = `${API_BASE_URL}/productos_categorias_consulta`;
+        console.log(`\n📡 PETICIÓN INTERNA: Consulta de categorías`);
+        console.log(`   🔗 URL: ${urlCategorias}`);
+        console.log(`   📍 Origen: GET /api/categorias`);
+        console.log(`   ⏱️  Iniciando petición...`);
+        
+        const inicioConsulta = Date.now();
+        const response = await axios.post(urlCategorias, {
             "api_key": PERSEO_API_KEY,
             "descripcion": "" // Vacío para que traiga todas las categorías
         });
+        
+        const tiempoConsulta = ((Date.now() - inicioConsulta) / 1000).toFixed(2);
+        console.log(`   ✅ Respuesta recibida en ${tiempoConsulta}s`);
+        console.log(`   📊 Status: ${response.status}`);
+        console.log(`   📦 Categorías encontradas: ${response.data?.categorias?.length || 0}`);
 
         // Verificamos si Perseo respondió con datos
         if (response.data && response.data.categorias) {
@@ -156,10 +190,14 @@ app.get('/api/categorias', async (req, res) => {
                 message: "No se pudo conectar con el servidor de Perseo."
             });
         } else {
-            // Otro tipo de error
-            res.status(500).json({
-                success: false,
-                message: "Error al procesar la solicitud."
+            // Otro tipo de error (sintaxis, lógica, etc.)
+            console.error("Error completo:", error);
+            console.error("Stack:", error.stack);
+        res.status(500).json({
+            success: false,
+                message: "Error al procesar la solicitud.",
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+                type: error.name || 'UnknownError'
             });
         }
     }
@@ -352,14 +390,40 @@ app.get('/api/productos/:id', async (req, res) => {
         console.log(`🔄 Procesando productos de categoría ${categoriaIdNum}...`);
         const inicioTiempo = Date.now();
 
+        // Validar configuración antes de continuar
+        if (!PERSEO_API_KEY || !API_BASE_URL) {
+            throw new Error("Configuración incompleta: PERSEO_API_KEY o API_BASE_URL no están definidos");
+        }
+
         // 2. PROCESO INTERNO: Consulta base - Obtener lista técnica de productos (JSON ligero)
         // Filtramos solo por esa categoría para no saturar el canal
-        const resPerseo = await axios.post(`${API_BASE_URL}/productos_consulta`, {
+        const urlProductos = `${API_BASE_URL}/productos_consulta`;
+        console.log(`\n📡 PETICIÓN INTERNA #1: Consulta de productos`);
+        console.log(`   🔗 URL: ${urlProductos}`);
+        console.log(`   📍 Origen: GET /api/productos/${categoriaIdNum}`);
+        console.log(`   📦 Parámetros: categoriasid=${categoriaIdNum}`);
+        console.log(`   ⏱️  Iniciando petición...`);
+        
+        const inicioConsultaProductos = Date.now();
+        const resPerseo = await axios.post(urlProductos, {
             "api_key": PERSEO_API_KEY,
             "categoriasid": categoriaIdNum,
             "usuario_creacion": "ADMIN",
             "dispositivo": "API"
+        }, {
+            timeout: 30000, // 30 segundos para la consulta inicial
+            validateStatus: (status) => status < 500
         });
+        
+        const tiempoConsultaProductos = ((Date.now() - inicioConsultaProductos) / 1000).toFixed(2);
+        console.log(`   ✅ Respuesta recibida en ${tiempoConsultaProductos}s`);
+        console.log(`   📊 Status: ${resPerseo.status}`);
+        console.log(`   📦 Productos encontrados: ${resPerseo.data?.productos?.length || 0}`);
+
+        // Validar respuesta de Perseo
+        if (!resPerseo.data) {
+            throw new Error("La respuesta de Perseo no contiene datos");
+        }
 
         const productosRaw = resPerseo.data?.productos || [];
 
@@ -419,6 +483,15 @@ app.get('/api/productos/:id', async (req, res) => {
         const inicioDescarga = Date.now();
         
         // FASE 1: Descargar todas las imágenes en paralelo (máximo 50 simultáneas)
+        console.log(`\n📡 PETICIÓN INTERNA #2: Consulta de imágenes (${productosRaw.length} productos)`);
+        console.log(`   🔗 URL: ${urlImagen}`);
+        console.log(`   📍 Origen: GET /api/productos/${categoriaIdNum} (hidratación de imágenes)`);
+        console.log(`   🚀 Iniciando ${productosRaw.length} peticiones en paralelo (máx ${MAX_CONCURRENT_REQUESTS} simultáneas)...`);
+        
+        let contadorPeticiones = 0;
+        let contadorExitosas = 0;
+        let contadorFallidas = 0;
+        
         const productosConImagenRaw = await Promise.all(
             productosRaw.map((prod, index) => 
                 limitadorImagenes(async () => {
@@ -426,9 +499,14 @@ app.get('/api/productos/:id', async (req, res) => {
                         const productoId = prod.productosid || prod.productoid || prod.id;
                         
                         if (!productoId) {
+                            contadorPeticiones++;
+                            console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId || 'SIN_ID'} - Sin ID, omitiendo`);
                             return { producto: prod, imagenBase64: null, productoId: null };
                         }
 
+                        contadorPeticiones++;
+                        const inicioPeticion = Date.now();
+                        
                         // ESTRATEGIA: Axios con configuración optimizada
                         const resImg = await axios.post(urlImagen, {
                             "api_key": PERSEO_API_KEY,
@@ -441,6 +519,18 @@ app.get('/api/productos/:id', async (req, res) => {
                             httpAgent: false, // Desactivar agent para velocidad
                             httpsAgent: false
                         });
+                        
+                        const tiempoPeticion = ((Date.now() - inicioPeticion) / 1000).toFixed(2);
+                        const tieneImagen = resImg.data?.informacion === true && 
+                                          resImg.data?.productos_imagenes?.[0]?.imagen;
+                        
+                        if (tieneImagen) {
+                            contadorExitosas++;
+                            console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida (${tiempoPeticion}s)`);
+                        } else {
+                            contadorFallidas++;
+                            console.log(`   ❌ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Sin imagen (${tiempoPeticion}s)`);
+                        }
 
                         // Estructura real de Perseo: productos_imagenes es un array
                         // Si informacion: false, no hay imagen
@@ -471,9 +561,13 @@ app.get('/api/productos/:id', async (req, res) => {
                             productoId: productoId 
                         };
                     } catch (err) {
+                        contadorFallidas++;
+                        console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Error: ${err.message || 'Error desconocido'}`);
+                        
                         // Si falla la consulta, intentar una vez más antes de devolver null
                         // Esto asegura que las variantes tengan su imagen
                         try {
+                            console.log(`   🔄 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Reintentando...`);
                             const resImgRetry = await axios.post(urlImagen, {
                                 "api_key": PERSEO_API_KEY,
                                 "productosid": productoId
@@ -483,6 +577,9 @@ app.get('/api/productos/:id', async (req, res) => {
                             
                             if (resImgRetry.data?.informacion === true && 
                                 resImgRetry.data?.productos_imagenes?.[0]?.imagen) {
+                                contadorExitosas++;
+                                contadorFallidas--;
+                                console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida en retry`);
                                 return { 
                                     producto: prod, 
                                     imagenBase64: resImgRetry.data.productos_imagenes[0].imagen, 
@@ -491,6 +588,7 @@ app.get('/api/productos/:id', async (req, res) => {
                             }
                         } catch (retryErr) {
                             // Si el retry también falla, devolver null
+                            console.log(`   ❌ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Retry falló: ${retryErr.message || 'Error desconocido'}`);
                         }
                         
                         return { producto: prod, imagenBase64: null, productoId: productoId };
@@ -501,7 +599,11 @@ app.get('/api/productos/:id', async (req, res) => {
         
         const tiempoDescarga = ((Date.now() - inicioDescarga) / 1000).toFixed(2);
         const imagenesDescargadas = productosConImagenRaw.filter(p => p.imagenBase64 !== null).length;
-        console.log(`📥 Descarga completada en ${tiempoDescarga}s - ${imagenesDescargadas}/${productosRaw.length} imágenes obtenidas`);
+        console.log(`\n📥 RESUMEN DE PETICIONES DE IMÁGENES:`);
+        console.log(`   ⏱️  Tiempo total: ${tiempoDescarga}s`);
+        console.log(`   ✅ Exitosas: ${contadorExitosas}/${productosRaw.length}`);
+        console.log(`   ❌ Fallidas: ${contadorFallidas}/${productosRaw.length}`);
+        console.log(`   📊 Total imágenes obtenidas: ${imagenesDescargadas}/${productosRaw.length}`);
 
         // FASE 2: Comprimir solo imágenes que lo necesiten (máximo 50 simultáneas)
         const inicioCompresion = Date.now();
@@ -592,31 +694,64 @@ app.get('/api/productos/:id', async (req, res) => {
         res.json(resultado);
 
     } catch (error) {
-        console.error("Error en procesamiento de productos:", error.message);
+        console.error("❌ Error en procesamiento de productos:");
+        console.error("   Mensaje:", error.message);
+        console.error("   Tipo:", error.name);
+        console.error("   Stack:", error.stack);
+        
         if (error.response) {
             // Error de respuesta de la API
-            console.error("Status:", error.response.status);
-            console.error("Data:", error.response.data);
+            console.error("   Status HTTP:", error.response.status);
+            console.error("   Data:", error.response.data);
             res.status(error.response.status || 500).json({
                 success: false,
                 message: "Error al conectar con el servidor de Perseo.",
-                error: error.response.data
+                error: error.response.data,
+                status: error.response.status
             });
         } else if (error.request) {
             // Error de red
-            console.error("No se recibió respuesta del servidor");
+            console.error("   No se recibió respuesta del servidor");
             res.status(503).json({
                 success: false,
-                message: "No se pudo conectar con el servidor de Perseo."
+                message: "No se pudo conectar con el servidor de Perseo.",
+                error: "Timeout o error de red"
             });
         } else {
-            // Otro tipo de error
+            // Otro tipo de error (sintaxis, lógica, etc.)
+            console.error("   Error completo:", error);
             res.status(500).json({
                 success: false,
-                message: "Error al procesar la solicitud."
+                message: "Error al procesar la solicitud.",
+                error: process.env.NODE_ENV === 'development' ? error.message : "Error interno del servidor",
+                type: error.name || 'UnknownError'
             });
         }
     }
+});
+
+/**
+ * Endpoint de salud y diagnóstico
+ * GET /api/health - Verifica el estado del servidor y configuración
+ */
+app.get('/api/health', (req, res) => {
+    const config = {
+        apiKeyConfigured: !!PERSEO_API_KEY,
+        apiBaseUrlConfigured: !!API_BASE_URL,
+        apiBaseUrl: API_BASE_URL,
+        maxConcurrentRequests: MAX_CONCURRENT_REQUESTS,
+        maxConcurrentCompression: MAX_CONCURRENT_COMPRESSION,
+        cacheEnabled: true,
+        cacheTTLCategorias: CACHE_TTL_CATEGORIAS,
+        cacheTTLProductos: CACHE_TTL_PRODUCTOS
+    };
+
+    res.json({
+        success: true,
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        config: config
+    });
 });
 
 /**
@@ -660,6 +795,7 @@ app.listen(PORT, () => {
     console.log('\n🚀 Servidor intermedio optimizado listo');
     console.log(`📍 URL: http://localhost:${PORT}\n`);
     console.log('📡 Endpoints disponibles:');
+    console.log(`   GET  /api/health                  - Estado del servidor y configuración`);
     console.log(`   GET  /api/categorias              - Lista todas las categorías completas (caché: ${CACHE_TTL_CATEGORIAS}s)`);
     console.log(`   GET  /api/categorias/list          - Lista simplificada de categorías (solo ID y nombre)`);
     console.log(`   GET  /api/productos/:id           - Productos por ID (ej: /api/productos/126)`);
