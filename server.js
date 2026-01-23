@@ -280,7 +280,7 @@ function agruparProductos(lista) {
         if (!grupo) {
             grupo = {
                 codigo_padre: codigoPadre,
-                tiene_variables: false,
+                tiene_variantes: false,
                 variantes: []
             };
             mapaPadres[codigoPadre] = grupo;
@@ -291,7 +291,7 @@ function agruparProductos(lista) {
         
         // Optimización: solo marcar una vez cuando llega el segundo
         if (grupo.variantes.length === 2) {
-            grupo.tiene_variables = true;
+            grupo.tiene_variantes = true;
         }
     }
 
@@ -443,14 +443,21 @@ app.get('/api/productos/:id', async (req, res) => {
                         });
 
                         // Estructura real de Perseo: productos_imagenes es un array
-                        // La imagen está en productos_imagenes[0].imagen
+                        // Si informacion: false, no hay imagen
+                        // Si informacion: true, la imagen está en productos_imagenes[0].imagen
                         let imagenBase64 = null;
                         
-                        if (resImg.data?.productos_imagenes && 
-                            Array.isArray(resImg.data.productos_imagenes) && 
-                            resImg.data.productos_imagenes.length > 0) {
-                            // Tomar la primera imagen del array
-                            imagenBase64 = resImg.data.productos_imagenes[0].imagen;
+                        // Verificar primero si hay información (informacion: true)
+                        if (resImg.data?.informacion === true) {
+                            if (resImg.data?.productos_imagenes && 
+                                Array.isArray(resImg.data.productos_imagenes) && 
+                                resImg.data.productos_imagenes.length > 0) {
+                                // Tomar la primera imagen del array
+                                imagenBase64 = resImg.data.productos_imagenes[0].imagen;
+                            }
+                        } else if (resImg.data?.informacion === false) {
+                            // No hay imagen disponible
+                            imagenBase64 = null;
                         } else {
                             // Fallback: buscar en otras posibles estructuras
                             imagenBase64 = resImg.data?.imagen || 
@@ -464,8 +471,29 @@ app.get('/api/productos/:id', async (req, res) => {
                             productoId: productoId 
                         };
                     } catch (err) {
-                        // Errores silenciosos en fase de descarga (sin logs para mayor velocidad)
-                        return { producto: prod, imagenBase64: null, productoId: null };
+                        // Si falla la consulta, intentar una vez más antes de devolver null
+                        // Esto asegura que las variantes tengan su imagen
+                        try {
+                            const resImgRetry = await axios.post(urlImagen, {
+                                "api_key": PERSEO_API_KEY,
+                                "productosid": productoId
+                            }, {
+                                timeout: IMAGE_REQUEST_TIMEOUT
+                            });
+                            
+                            if (resImgRetry.data?.informacion === true && 
+                                resImgRetry.data?.productos_imagenes?.[0]?.imagen) {
+                                return { 
+                                    producto: prod, 
+                                    imagenBase64: resImgRetry.data.productos_imagenes[0].imagen, 
+                                    productoId: productoId 
+                                };
+                            }
+                        } catch (retryErr) {
+                            // Si el retry también falla, devolver null
+                        }
+                        
+                        return { producto: prod, imagenBase64: null, productoId: productoId };
                     }
                 })
             )
@@ -525,9 +553,9 @@ app.get('/api/productos/:id', async (req, res) => {
         ).length;
         const productosFinalesSinId = productosHidratados.length - productosFinalesConId;
         
-        // Contar grupos con variables
-        const gruposConVariables = resultadoFinal.filter(g => g.tiene_variables).length;
-        const gruposSinVariables = resultadoFinal.length - gruposConVariables;
+        // Contar grupos con variantes
+        const gruposConVariantes = resultadoFinal.filter(g => g.tiene_variantes).length;
+        const gruposSinVariantes = resultadoFinal.length - gruposConVariantes;
         
         // Total de variantes en todos los grupos
         const totalVariantes = resultadoFinal.reduce((sum, grupo) => sum + grupo.variantes.length, 0);
@@ -543,8 +571,8 @@ app.get('/api/productos/:id', async (req, res) => {
         console.log(`   ✅ Productos CON ID: ${productosFinalesConId}`);
         console.log(`   ❌ Productos SIN ID: ${productosFinalesSinId}`);
         console.log(`   🔑 Total códigos padre (grupos): ${resultadoFinal.length}`);
-        console.log(`   🔄 Grupos CON variables: ${gruposConVariables}`);
-        console.log(`   📌 Grupos SIN variables: ${gruposSinVariables}`);
+        console.log(`   🔄 Grupos CON variantes: ${gruposConVariantes}`);
+        console.log(`   📌 Grupos SIN variantes: ${gruposSinVariantes}`);
         console.log(`   📋 Total variantes en grupos: ${totalVariantes}`);
         console.log(`   🖼️  Imágenes: ${imagenesConDatos} con datos, ${imagenesSinDatos} sin datos\n`);
 
