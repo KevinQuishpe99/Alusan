@@ -32,8 +32,8 @@ const API_BASE_URL = process.env.API_BASE_URL || "https://accesoalnusan.app/api"
 // Configuración de compresión de imágenes (ULTRA OPTIMIZADO PARA VELOCIDAD MÁXIMA)
 const MAX_IMAGE_SIZE = 250; // Tamaño mínimo para máxima velocidad (era 300)
 const IMAGE_QUALITY = 65; // Calidad mínima aceptable (era 70)
-const MAX_CONCURRENT_REQUESTS = 80; // Paralelismo extremo para descargas (era 50)
-const MAX_CONCURRENT_COMPRESSION = 50; // Paralelismo extremo para compresión (era 30)
+const MAX_CONCURRENT_REQUESTS = 100; // Paralelismo extremo para descargas (aumentado para múltiples imágenes)
+const MAX_CONCURRENT_COMPRESSION = 150; // Paralelismo extremo para compresión (aumentado para procesar todas las imágenes en paralelo)
 const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT) || 10000; // Timeout de 10s (configurable, era 2s)
 const COMPRESSION_EFFORT = 0; // Esfuerzo cero = máxima velocidad posible (era 1)
 const SKIP_COMPRESSION_IF_SMALL = true; // Saltar compresión si imagen ya es pequeña
@@ -502,7 +502,7 @@ app.get('/api/productos/:id', async (req, res) => {
                         if (!productoId) {
                             contadorPeticiones++;
                             console.log(`   ⚠️  [${contadorPeticiones}/${productosRaw.length}] productosid=SIN_ID - Sin ID, omitiendo`);
-                            return { producto: prod, imagenBase64: null, productoId: null };
+                            return { producto: prod, imagenesBase64: [], productoId: null };
                         }
 
                         contadorPeticiones++;
@@ -522,12 +522,15 @@ app.get('/api/productos/:id', async (req, res) => {
                         });
                         
                         const tiempoPeticion = ((Date.now() - inicioPeticion) / 1000).toFixed(2);
-                        const tieneImagen = resImg.data?.informacion === true && 
-                                          resImg.data?.productos_imagenes?.[0]?.imagen;
+                        const tieneImagenes = resImg.data?.informacion === true && 
+                                             resImg.data?.productos_imagenes && 
+                                             Array.isArray(resImg.data.productos_imagenes) &&
+                                             resImg.data.productos_imagenes.length > 0;
                         
-                        if (tieneImagen) {
+                        if (tieneImagenes) {
                             contadorExitosas++;
-                            console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida (${tiempoPeticion}s)`);
+                            const numImagenes = resImg.data.productos_imagenes.length;
+                            console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - ${numImagenes} imagen(es) obtenida(s) (${tiempoPeticion}s)`);
                         } else {
                             contadorFallidas++;
                             console.log(`   ❌ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Sin imagen (${tiempoPeticion}s)`);
@@ -535,30 +538,39 @@ app.get('/api/productos/:id', async (req, res) => {
 
                         // Estructura real de Perseo: productos_imagenes es un array
                         // Si informacion: false, no hay imagen
-                        // Si informacion: true, la imagen está en productos_imagenes[0].imagen
-                        let imagenBase64 = null;
+                        // Si informacion: true, puede haber UNA o MÚLTIPLES imágenes en productos_imagenes[]
+                        let imagenesBase64 = [];
                         
                         // Verificar primero si hay información (informacion: true)
                         if (resImg.data?.informacion === true) {
                             if (resImg.data?.productos_imagenes && 
                                 Array.isArray(resImg.data.productos_imagenes) && 
                                 resImg.data.productos_imagenes.length > 0) {
-                                // Tomar la primera imagen del array
-                                imagenBase64 = resImg.data.productos_imagenes[0].imagen;
+                                // Tomar TODAS las imágenes del array (no solo la primera)
+                                imagenesBase64 = resImg.data.productos_imagenes
+                                    .map(img => img.imagen)
+                                    .filter(img => img); // Filtrar imágenes vacías
+                                
+                                if (imagenesBase64.length > 1) {
+                                    console.log(`   📸 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - ${imagenesBase64.length} imágenes encontradas`);
+                                }
                             }
                         } else if (resImg.data?.informacion === false) {
                             // No hay imagen disponible
-                            imagenBase64 = null;
+                            imagenesBase64 = [];
                         } else {
                             // Fallback: buscar en otras posibles estructuras
-                            imagenBase64 = resImg.data?.imagen || 
-                                         resImg.data?.data?.imagen || 
-                                         resImg.data?.imagen_data;
+                            const fallbackImg = resImg.data?.imagen || 
+                                              resImg.data?.data?.imagen || 
+                                              resImg.data?.imagen_data;
+                            if (fallbackImg) {
+                                imagenesBase64 = [fallbackImg];
+                            }
                         }
 
                         return { 
                             producto: prod, 
-                            imagenBase64: imagenBase64 || null, 
+                            imagenesBase64: imagenesBase64, // Array de imágenes
                             productoId: productoId 
                         };
                     } catch (err) {
@@ -583,13 +595,19 @@ app.get('/api/productos/:id', async (req, res) => {
                                 });
                                 
                                 if (resImgRetry.data?.informacion === true && 
-                                    resImgRetry.data?.productos_imagenes?.[0]?.imagen) {
+                                    resImgRetry.data?.productos_imagenes && 
+                                    Array.isArray(resImgRetry.data.productos_imagenes) &&
+                                    resImgRetry.data.productos_imagenes.length > 0) {
+                                    const imagenesRetry = resImgRetry.data.productos_imagenes
+                                        .map(img => img.imagen)
+                                        .filter(img => img);
+                                    
                                     contadorExitosas++;
                                     contadorFallidas--;
-                                    console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Imagen obtenida en retry`);
+                                    console.log(`   ✅ [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - ${imagenesRetry.length} imagen(es) obtenida(s) en retry`);
                                     return { 
                                         producto: prod, 
-                                        imagenBase64: resImgRetry.data.productos_imagenes[0].imagen, 
+                                        imagenesBase64: imagenesRetry, 
                                         productoId: productoId 
                                     };
                                 }
@@ -599,48 +617,88 @@ app.get('/api/productos/:id', async (req, res) => {
                             }
                         }
                         
-                        return { producto: prod, imagenBase64: null, productoId: productoId || null };
+                        return { producto: prod, imagenesBase64: [], productoId: productoId || null };
                     }
                 })
             )
         );
         
         const tiempoDescarga = ((Date.now() - inicioDescarga) / 1000).toFixed(2);
-        const imagenesDescargadas = productosConImagenRaw.filter(p => p.imagenBase64 !== null).length;
+        const totalImagenesDescargadas = productosConImagenRaw.reduce((sum, p) => sum + (p.imagenesBase64?.length || 0), 0);
+        const productosConImagenes = productosConImagenRaw.filter(p => p.imagenesBase64 && p.imagenesBase64.length > 0);
         console.log(`\n📥 RESUMEN DE PETICIONES DE IMÁGENES:`);
         console.log(`   ⏱️  Tiempo total: ${tiempoDescarga}s`);
         console.log(`   ✅ Exitosas: ${contadorExitosas}/${productosRaw.length}`);
         console.log(`   ❌ Fallidas: ${contadorFallidas}/${productosRaw.length}`);
-        console.log(`   📊 Total imágenes obtenidas: ${imagenesDescargadas}/${productosRaw.length}`);
+        console.log(`   📊 Total productos con imágenes: ${productosConImagenes.length}/${productosRaw.length}`);
+        console.log(`   🖼️  Total imágenes descargadas: ${totalImagenesDescargadas}`);
 
-        // FASE 2: Comprimir solo imágenes que lo necesiten (máximo 50 simultáneas)
+        // FASE 2: Comprimir TODAS las imágenes en un pool global (ESTRATEGIA OPTIMIZADA)
+        // En lugar de procesar por producto, procesamos TODAS las imágenes de TODOS los productos
+        // en un solo pool. Esto es más eficiente cuando hay productos con múltiples imágenes.
         const inicioCompresion = Date.now();
         
-        // ESTRATEGIA: Filtrar y procesar solo imágenes que necesiten compresión
-        const productosConImagen = productosConImagenRaw.filter(item => item.imagenBase64);
-        const productosSinImagen = productosConImagenRaw.filter(item => !item.imagenBase64);
+        console.log(`🗜️  Iniciando compresión de ${totalImagenesDescargadas} imágenes en pool global (máx ${MAX_CONCURRENT_COMPRESSION} simultáneas)...`);
         
-        // Procesar solo las que tienen imagen en paralelo máximo
-        const productosComprimidos = await Promise.all(
-            productosConImagen.map((item) => 
+        // ESTRATEGIA OPTIMIZADA: Crear un array plano de todas las imágenes con referencia al producto
+        const todasLasImagenes = [];
+        productosConImagenRaw.forEach((item, productoIndex) => {
+            if (item.imagenesBase64 && item.imagenesBase64.length > 0) {
+                item.imagenesBase64.forEach((imagenBase64, imagenIndex) => {
+                    todasLasImagenes.push({
+                        productoIndex,
+                        imagenIndex,
+                        imagenBase64,
+                        producto: item.producto
+                    });
+                });
+            }
+        });
+        
+        // Procesar TODAS las imágenes en paralelo usando el limitador global
+        const imagenesComprimidas = await Promise.all(
+            todasLasImagenes.map((item) => 
                 limitadorCompresion(async () => {
                     try {
                         const imagenComprimida = await procesarImagen(item.imagenBase64);
-                        return { ...item.producto, imagen_data: imagenComprimida };
+                        return {
+                            productoIndex: item.productoIndex,
+                            imagenIndex: item.imagenIndex,
+                            imagenComprimida
+                        };
                     } catch (err) {
                         // Si falla, usar original
-                        return { ...item.producto, imagen_data: item.imagenBase64 };
+                        return {
+                            productoIndex: item.productoIndex,
+                            imagenIndex: item.imagenIndex,
+                            imagenComprimida: item.imagenBase64
+                        };
                     }
                 })
             )
         );
         
-        // Combinar productos con y sin imagen
-        const productosSinImagenMapeados = productosSinImagen.map(item => ({ ...item.producto, imagen_data: null }));
-        const productosHidratados = [...productosComprimidos, ...productosSinImagenMapeados];
+        // Reconstruir productos con sus imágenes comprimidas
+        const productosComprimidos = productosConImagenRaw.map((item, productoIndex) => {
+            if (!item.imagenesBase64 || item.imagenesBase64.length === 0) {
+                return { ...item.producto, imagenes_data: [] };
+            }
+            
+            // Obtener todas las imágenes comprimidas de este producto
+            const imagenesDelProducto = imagenesComprimidas
+                .filter(img => img.productoIndex === productoIndex)
+                .sort((a, b) => a.imagenIndex - b.imagenIndex)
+                .map(img => img.imagenComprimida);
+            
+            return { ...item.producto, imagenes_data: imagenesDelProducto };
+        });
+        
+        const productosHidratados = productosComprimidos;
         
         const tiempoCompresion = ((Date.now() - inicioCompresion) / 1000).toFixed(2);
+        const imagenesProcesadas = imagenesComprimidas.length;
         console.log(`🗜️  Compresión completada en ${tiempoCompresion}s`);
+        console.log(`   📊 ${imagenesProcesadas} imágenes procesadas en pool global (${(imagenesProcesadas / parseFloat(tiempoCompresion)).toFixed(1)} img/s)`);
         
         // ESTRATEGIA: Pre-agrupar productos sin imagen mientras se comprimen (si hay muchos)
         // Esto ahorra tiempo en la agrupación final
@@ -652,8 +710,9 @@ app.get('/api/productos/:id', async (req, res) => {
         const resultadoFinal = agruparProductos(productosHidratados);
 
         // Resumen completo de imágenes y agrupación
-        const imagenesConDatos = productosHidratados.filter(p => p.imagen_data !== null).length;
-        const imagenesSinDatos = productosHidratados.length - imagenesConDatos;
+        const totalImagenesComprimidas = productosHidratados.reduce((sum, p) => sum + (p.imagenes_data?.length || 0), 0);
+        const productosConImagenesFinal = productosHidratados.filter(p => p.imagenes_data && p.imagenes_data.length > 0).length;
+        const productosSinImagenesFinal = productosHidratados.length - productosConImagenesFinal;
         const tiempoTotal = ((Date.now() - inicioTiempo) / 1000).toFixed(2);
         const tiempoAgrupacion = ((Date.now() - inicioCompresion) / 1000).toFixed(2);
         
@@ -684,7 +743,8 @@ app.get('/api/productos/:id', async (req, res) => {
         console.log(`   🔄 Grupos CON variantes: ${gruposConVariantes}`);
         console.log(`   📌 Grupos SIN variantes: ${gruposSinVariantes}`);
         console.log(`   📋 Total variantes en grupos: ${totalVariantes}`);
-        console.log(`   🖼️  Imágenes: ${imagenesConDatos} con datos, ${imagenesSinDatos} sin datos\n`);
+        console.log(`   🖼️  Productos con imágenes: ${productosConImagenesFinal}, sin imágenes: ${productosSinImagenesFinal}`);
+        console.log(`   🖼️  Total imágenes comprimidas: ${totalImagenesComprimidas}\n`);
 
         // 5. SALIDA: JSON refactorizado y optimizado
         // Productos organizados por Código Padre, con atributos de control inyectados
