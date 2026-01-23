@@ -34,7 +34,7 @@ const MAX_IMAGE_SIZE = 250; // Tamaño mínimo para máxima velocidad (era 300)
 const IMAGE_QUALITY = 65; // Calidad mínima aceptable (era 70)
 const MAX_CONCURRENT_REQUESTS = 80; // Paralelismo extremo para descargas (era 50)
 const MAX_CONCURRENT_COMPRESSION = 50; // Paralelismo extremo para compresión (era 30)
-const IMAGE_REQUEST_TIMEOUT = 2000; // Timeout ultra agresivo (era 3s)
+const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT) || 10000; // Timeout de 10s (configurable, era 2s)
 const COMPRESSION_EFFORT = 0; // Esfuerzo cero = máxima velocidad posible (era 1)
 const SKIP_COMPRESSION_IF_SMALL = true; // Saltar compresión si imagen ya es pequeña
 const MIN_IMAGE_SIZE_TO_COMPRESS = 50000; // Solo comprimir si imagen > 50KB
@@ -569,12 +569,17 @@ app.get('/api/productos/:id', async (req, res) => {
                         // Esto asegura que las variantes tengan su imagen
                         if (productoId) {
                             try {
-                                console.log(`   🔄 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Reintentando...`);
+                                console.log(`   🔄 [${contadorPeticiones}/${productosRaw.length}] productosid=${productoId} - Reintentando con timeout aumentado...`);
                                 const resImgRetry = await axios.post(urlImagen, {
                                     "api_key": PERSEO_API_KEY,
                                     "productosid": productoId
                                 }, {
-                                    timeout: IMAGE_REQUEST_TIMEOUT
+                                    timeout: IMAGE_REQUEST_TIMEOUT * 2, // Timeout doble en el retry
+                                    maxContentLength: Infinity,
+                                    maxBodyLength: Infinity,
+                                    validateStatus: (status) => status < 500,
+                                    httpAgent: false,
+                                    httpsAgent: false
                                 });
                                 
                                 if (resImgRetry.data?.informacion === true && 
@@ -809,7 +814,7 @@ app.listen(PORT, () => {
     console.log(`   🚀 Paralelismo extremo (${MAX_CONCURRENT_REQUESTS} descargas, ${MAX_CONCURRENT_COMPRESSION} compresiones simultáneas)`);
     console.log(`   ⚡ Procesamiento optimizado (skip compresión si < ${MIN_IMAGE_SIZE_TO_COMPRESS} bytes)`);
     console.log(`   🗜️  Compresión WebP mínima (${MAX_IMAGE_SIZE}px, calidad ${IMAGE_QUALITY}%, effort ${COMPRESSION_EFFORT})`);
-    console.log(`   ⏱️  Timeout ultra agresivo (${IMAGE_REQUEST_TIMEOUT}ms por imagen)`);
+    console.log(`   ⏱️  Timeout configurado (${IMAGE_REQUEST_TIMEOUT}ms por imagen)`);
     console.log(`   📦 Agrupación optimizada (indexOf + pre-allocación)`);
     console.log(`   💾 Caché en memoria (categorías: ${CACHE_TTL_CATEGORIAS}s, productos: ${CACHE_TTL_PRODUCTOS}s)`);
     console.log(`   🔇 Logs mínimos + procesamiento selectivo\n`);
