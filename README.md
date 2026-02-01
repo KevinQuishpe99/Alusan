@@ -5,9 +5,10 @@ Servidor API para procesamiento optimizado de productos de Perseo con agrupació
 ## 🚀 Características
 
 - **Extracción Segmentada**: Obtiene productos por categoría para evitar sobrecarga
-- **Hidratación Paralela**: Descarga todas las imágenes simultáneamente usando paralelismo masivo
+- **Hidratación Paralela**: Descarga todas las imágenes y existencias simultáneamente usando paralelismo masivo
 - **Compresión WebP**: Reduce el tamaño de las imágenes de megabytes a kilobytes
 - **Agrupación Inteligente**: Agrupa productos por código padre (separado por guion)
+- **Consulta de Existencias**: Obtiene existencias del almacén configurado en paralelo
 - **Alta Performance**: Optimizado para velocidad máxima
 
 ## 📋 Requisitos Previos
@@ -30,7 +31,16 @@ npm install
 PORT=3001
 PERSEO_API_KEY=tu_api_key_aqui
 API_BASE_URL=https://accesoalnusan.app/api
+ALMACEN_ID=2
+IMAGE_REQUEST_TIMEOUT=10000
 ```
+
+**Variables de entorno:**
+- `PORT` - Puerto del servidor (default: 3001)
+- `PERSEO_API_KEY` - API Key de Perseo
+- `API_BASE_URL` - URL base de la API de Perseo (default: https://accesoalnusan.app/api)
+- `ALMACEN_ID` - ID del almacén para consultar existencias (default: 2)
+- `IMAGE_REQUEST_TIMEOUT` - Timeout para peticiones de imágenes en ms (default: 10000)
 
 ## 🏃 Ejecución
 
@@ -84,7 +94,8 @@ GET http://localhost:3001/api/productos/VARIEDADES
           "descripcion": "Cartera Elegante Azul",
           "precio": 45.00,
           "stock": 10,
-          "imagen_data": "data:image/webp;base64,..."
+          "existenciastotales": 359,
+          "imagenes_data": ["data:image/webp;base64,..."]
         },
         {
           "productosid": 1202,
@@ -92,7 +103,8 @@ GET http://localhost:3001/api/productos/VARIEDADES
           "descripcion": "Cartera Elegante Dorado",
           "precio": 48.00,
           "stock": 5,
-          "imagen_data": "data:image/webp;base64,..."
+          "existenciastotales": 120,
+          "imagenes_data": ["data:image/webp;base64,..."]
         }
       ]
     }
