@@ -1,11 +1,58 @@
 import { CACHE_TTL_CATEGORIAS, CACHE_TTL_PRODUCTOS } from '../config/index.js';
+import { authenticateApiKey } from '../middleware/auth.js';
 
 /**
- * Endpoint: GET /api/cache/stats
- * Ver estadísticas del caché
+ * @swagger
+ * /api/cache/stats:
+ *   post:
+ *     summary: Obtiene estadísticas del caché
+ *     tags: [Cache]
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - api_key
+ *             properties:
+ *               api_key:
+ *                 type: string
+ *                 example: ""
+ *     responses:
+ *       200:
+ *         description: Estadísticas del caché
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 categorias:
+ *                   type: object
+ *                   properties:
+ *                     keys:
+ *                       type: integer
+ *                       example: 5
+ *                     hits:
+ *                       type: integer
+ *                       example: 120
+ *                     misses:
+ *                       type: integer
+ *                       example: 10
+ *                 productos:
+ *                   type: object
+ *       401:
+ *         description: API key requerida
+ *       403:
+ *         description: API key inválida
  */
 export function setupCacheRoutes(app, cacheCategorias, cacheProductos) {
-    app.get('/api/cache/stats', (req, res) => {
+    app.post('/api/cache/stats', authenticateApiKey, (req, res) => {
         const statsCategorias = cacheCategorias.getStats();
         const statsProductos = cacheProductos.getStats();
 
@@ -27,10 +74,45 @@ export function setupCacheRoutes(app, cacheCategorias, cacheProductos) {
     });
 
     /**
-     * Endpoint: DELETE /api/cache/clear
-     * Limpiar todo el caché
+     * @swagger
+     * /api/cache/clear:
+     *   post:
+     *     summary: Limpia todo el caché
+     *     tags: [Cache]
+     *     security:
+     *       - ApiKeyAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - api_key
+     *             properties:
+     *               api_key:
+     *                 type: string
+     *                 example: ""
+     *     responses:
+     *       200:
+     *         description: Caché limpiado correctamente
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 message:
+     *                   type: string
+     *                   example: "Caché limpiado correctamente."
+     *       401:
+     *         description: API key requerida
+     *       403:
+     *         description: API key inválida
      */
-    app.delete('/api/cache/clear', (req, res) => {
+    app.post('/api/cache/clear', authenticateApiKey, (req, res) => {
         cacheCategorias.flushAll();
         cacheProductos.flushAll();
         

@@ -8,6 +8,12 @@ export const PERSEO_API_KEY = process.env.PERSEO_API_KEY || "SGqmr7Cf4Gn634pGdqZ
 export const API_BASE_URL = process.env.API_BASE_URL || "https://accesoalnusan.app/api";
 export const PORT = process.env.PORT || 3001;
 
+// Configuración de seguridad (API Key)
+// Usamos la misma API key de Perseo para autenticación en nuestro sistema
+// La API key se almacena como hash SHA-256 para comparación segura
+export const API_KEY = process.env.API_KEY || PERSEO_API_KEY; // Por defecto usa la misma que PERSEO_API_KEY
+export const API_SECRET_KEY = process.env.API_SECRET_KEY; // Clave secreta para cifrado (si no existe, se genera automáticamente)
+
 // Configuración de compresión de imágenes (ULTRA OPTIMIZADO PARA VELOCIDAD MÁXIMA)
 export const MAX_IMAGE_SIZE = 250; // Tamaño mínimo para máxima velocidad
 export const IMAGE_QUALITY = 65; // Calidad mínima aceptable
@@ -24,4 +30,3 @@ export const ALMACEN_ID = parseInt(process.env.ALMACEN_ID) || 2; // ID del almac
 // Configuración de caché (TTL en segundos)
 export const CACHE_TTL_CATEGORIAS = 30 * 60; // 30 minutos para categorías
 export const CACHE_TTL_PRODUCTOS = 15 * 60;  // 15 minutos para productos
-

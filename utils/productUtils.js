@@ -81,10 +81,19 @@ export async function buscarCategoriaPorNombre(nombreCategoria, cacheCategorias,
         }
     }
     
-    // Buscar la categoría por nombre (case-insensitive)
-    const categoriaEncontrada = categorias.data.find(cat => 
-        cat.descripcion && cat.descripcion.toLowerCase() === nombreCategoria.toLowerCase()
-    );
+    // Buscar la categoría por nombre (case-insensitive - sin importar mayúsculas/minúsculas)
+    // Asegurar que nombreCategoria sea un string
+    const nombreCategoriaStr = String(nombreCategoria || '').trim();
+    if (!nombreCategoriaStr) {
+        return null;
+    }
+    
+    const nombreCategoriaNormalizado = nombreCategoriaStr.toLowerCase();
+    const categoriaEncontrada = categorias.data.find(cat => {
+        if (!cat.descripcion) return false;
+        const descripcionNormalizada = String(cat.descripcion).trim().toLowerCase();
+        return descripcionNormalizada === nombreCategoriaNormalizado;
+    });
     
     return categoriaEncontrada ? categoriaEncontrada.productos_categoriasid : null;
 }

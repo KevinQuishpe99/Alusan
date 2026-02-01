@@ -1,15 +1,55 @@
 import express from 'express';
 import { obtenerCategorias } from '../services/perseoService.js';
 import { CACHE_TTL_CATEGORIAS } from '../config/index.js';
+import { authenticateApiKey } from '../middleware/auth.js';
 
 const router = express.Router();
 
 /**
- * Endpoint: GET /api/categorias/list
- * Lista simplificada de categorías (solo ID y nombre)
+ * @swagger
+ * /api/categorias/list:
+ *   post:
+ *     summary: Lista simplificada de categorías (solo ID y nombre)
+ *     tags: [Categorías]
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - api_key
+ *             properties:
+ *               api_key:
+ *                 type: string
+ *                 example: ""
+ *     responses:
+ *       200:
+ *         description: Lista de categorías simplificada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 total:
+ *                   type: integer
+ *                   example: 25
+ *                 categorias:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Categoria'
+ *       401:
+ *         description: API key requerida
+ *       403:
+ *         description: API key inválida
  */
 export function setupCategoriasRoutes(app, cacheCategorias) {
-    app.get('/api/categorias/list', async (req, res) => {
+    app.post('/api/categorias/list', authenticateApiKey, async (req, res) => {
         const cacheKey = 'categorias_list_simple';
         
         const cachedData = cacheCategorias.get(cacheKey);
@@ -21,7 +61,7 @@ export function setupCategoriasRoutes(app, cacheCategorias) {
             const urlCategorias = `${process.env.API_BASE_URL || "https://accesoalnusan.app/api"}/productos_categorias_consulta`;
             console.log(`\n📡 PETICIÓN INTERNA: Consulta de categorías`);
             console.log(`   🔗 URL: ${urlCategorias}`);
-            console.log(`   📍 Origen: GET /api/categorias/list`);
+            console.log(`   📍 Origen: POST /api/categorias/list`);
             console.log(`   ⏱️  Iniciando petición...`);
             
             const inicioConsulta = Date.now();
@@ -61,10 +101,46 @@ export function setupCategoriasRoutes(app, cacheCategorias) {
     });
 
     /**
-     * Endpoint: GET /api/categorias
-     * Lista todas las categorías completas
+     * @swagger
+     * /api/categorias:
+     *   post:
+     *     summary: Lista todas las categorías completas
+     *     tags: [Categorías]
+     *     security:
+     *       - ApiKeyAuth: []
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             required:
+     *               - api_key
+     *             properties:
+     *               api_key:
+     *                 type: string
+     *                 example: ""
+     *     responses:
+     *       200:
+     *         description: Lista completa de categorías
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 data:
+     *                   type: array
+     *                   items:
+     *                     type: object
+     *       401:
+     *         description: API key requerida
+     *       403:
+     *         description: API key inválida
      */
-    app.get('/api/categorias', async (req, res) => {
+    app.post('/api/categorias', authenticateApiKey, async (req, res) => {
         const cacheKey = 'categorias_all';
         
         const cachedData = cacheCategorias.get(cacheKey);
@@ -77,7 +153,7 @@ export function setupCategoriasRoutes(app, cacheCategorias) {
             const urlCategorias = `${process.env.API_BASE_URL || "https://accesoalnusan.app/api"}/productos_categorias_consulta`;
             console.log(`\n📡 PETICIÓN INTERNA: Consulta de categorías`);
             console.log(`   🔗 URL: ${urlCategorias}`);
-            console.log(`   📍 Origen: GET /api/categorias`);
+            console.log(`   📍 Origen: POST /api/categorias`);
             console.log(`   ⏱️  Iniciando petición...`);
             
             const inicioConsulta = Date.now();

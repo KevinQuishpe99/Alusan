@@ -4,8 +4,7 @@ import {
     PERSEO_API_KEY,
     API_BASE_URL,
     MAX_CONCURRENT_REQUESTS,
-    IMAGE_REQUEST_TIMEOUT,
-    ALMACEN_ID
+    IMAGE_REQUEST_TIMEOUT
 } from '../config/index.js';
 import { procesarTodasLasImagenes } from '../utils/imageProcessor.js';
 
@@ -113,9 +112,10 @@ async function obtenerImagenesProducto(productoId) {
 /**
  * Obtiene las existencias de un producto específico del almacén configurado
  * @param {number} productoId - ID del producto
+ * @param {number} almacenId - ID del almacén (por defecto 2)
  * @returns {Promise<number>} - Cantidad de existencias del almacén configurado (0 si no hay)
  */
-async function obtenerExistenciasProducto(productoId) {
+async function obtenerExistenciasProducto(productoId, almacenId = 2) {
     const urlExistencias = `${API_BASE_URL}/existencia_producto`;
     
     try {
@@ -133,9 +133,9 @@ async function obtenerExistenciasProducto(productoId) {
         
         // Verificar si hay existencias
         if (resExistencias.data?.existencias && Array.isArray(resExistencias.data.existencias)) {
-            // Buscar el almacén configurado (ALMACEN_ID)
+            // Buscar el almacén especificado
             const almacenEncontrado = resExistencias.data.existencias.find(
-                exist => exist.almacenesid === ALMACEN_ID
+                exist => exist.almacenesid === almacenId
             );
             
             if (almacenEncontrado) {
@@ -161,7 +161,7 @@ async function obtenerExistenciasProducto(productoId) {
             
             if (resExistenciasRetry.data?.existencias && Array.isArray(resExistenciasRetry.data.existencias)) {
                 const almacenEncontrado = resExistenciasRetry.data.existencias.find(
-                    exist => exist.almacenesid === ALMACEN_ID
+                    exist => exist.almacenesid === almacenId
                 );
                 
                 if (almacenEncontrado) {
@@ -179,9 +179,10 @@ async function obtenerExistenciasProducto(productoId) {
 /**
  * Hidrata productos con sus imágenes y existencias en paralelo
  * @param {Array} productosRaw - Array de productos sin imágenes ni existencias
+ * @param {number} almacenId - ID del almacén para consultar existencias (por defecto 2)
  * @returns {Promise<Array>} - Productos con imágenes comprimidas y existencias
  */
-export async function hidratarProductosConImagenes(productosRaw) {
+export async function hidratarProductosConImagenes(productosRaw, almacenId = 2) {
     const urlImagen = `${API_BASE_URL}/productos_imagenes_consulta`;
     const inicioDescarga = Date.now();
     
@@ -193,7 +194,7 @@ export async function hidratarProductosConImagenes(productosRaw) {
     console.log(`   🔗 URL Imágenes: ${urlImagen}`);
     console.log(`   🔗 URL Existencias: ${API_BASE_URL}/existencia_producto`);
     console.log(`   📍 Origen: Hidratación de imágenes y existencias`);
-    console.log(`   🏪 Almacén configurado: ID ${ALMACEN_ID}`);
+    console.log(`   🏪 Almacén configurado: ID ${almacenId}`);
     console.log(`   🚀 Iniciando ${productosRaw.length * 2} peticiones en paralelo (máx ${MAX_CONCURRENT_REQUESTS} simultáneas)...`);
     
     // FASE 1: Descargar todas las imágenes Y existencias en paralelo (ambas al mismo tiempo)
@@ -221,7 +222,7 @@ export async function hidratarProductosConImagenes(productosRaw) {
                     // Hacer ambas peticiones en paralelo (imágenes y existencias al mismo tiempo)
                     const [imagenesBase64, existencias] = await Promise.all([
                         obtenerImagenesProducto(productoId),
-                        obtenerExistenciasProducto(productoId)
+                        obtenerExistenciasProducto(productoId, almacenId)
                     ]);
                     
                     const tiempoPeticion = ((Date.now() - inicioPeticion) / 1000).toFixed(2);
@@ -270,7 +271,7 @@ export async function hidratarProductosConImagenes(productosRaw) {
     console.log(`   ❌ Fallidas: ${contadorFallidas}/${productosRaw.length}`);
     console.log(`   📊 Total productos con imágenes: ${productosConImagenes.length}/${productosRaw.length}`);
     console.log(`   🖼️  Total imágenes descargadas: ${totalImagenesDescargadas}`);
-    console.log(`   📦 Productos con existencias (almacén ${ALMACEN_ID}): ${productosConExistencias}/${productosRaw.length}`);
+    console.log(`   📦 Productos con existencias (almacén ${almacenId}): ${productosConExistencias}/${productosRaw.length}`);
     console.log(`   📊 Total existencias: ${totalExistencias}`);
     
     // FASE 2: Comprimir todas las imágenes

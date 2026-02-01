@@ -1,35 +1,136 @@
 import { obtenerProductosPorCategoria, hidratarProductosConImagenes } from '../services/perseoService.js';
 import { agruparProductos, buscarCategoriaPorNombre } from '../utils/productUtils.js';
 import { PERSEO_API_KEY, API_BASE_URL, CACHE_TTL_PRODUCTOS } from '../config/index.js';
+import { authenticateApiKey } from '../middleware/auth.js';
+import { validarAlmacen } from '../services/almacenService.js';
 
 /**
- * Endpoint: GET /api/productos/:id
- * Traer productos, sus imágenes en paralelo y agrupar por código padre.
- * Acepta tanto ID numérico como nombre de categoría
+ * @swagger
+ * /api/productos:
+ *   post:
+ *     summary: Obtiene productos agrupados por código padre con imágenes y existencias
+ *     description: Trae productos, descarga imágenes en paralelo, las comprime a WebP, consulta existencias del almacén y agrupa por código padre
+ *     tags: [Productos]
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - api_key
+ *             properties:
+ *               api_key:
+ *                 type: string
+ *                 example: ""
+ *               categoria_id:
+ *                 type: integer
+ *                 example: 126
+ *                 description: ID numérico de la categoría (opcional si se envía categoria_nombre)
+ *               categoria_nombre:
+ *                 type: string
+ *                 example: "VARIEDADES"
+ *                 description: Nombre de la categoría (opcional si se envía categoria_id)
+ *               almacen_id:
+ *                 type: integer
+ *                 example: 2
+ *                 description: ID del almacén para consultar existencias (opcional, default 2)
+ *     responses:
+ *       200:
+ *         description: Productos agrupados por código padre
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 categoria_consultada:
+ *                   type: integer
+ *                   example: 126
+ *                 total_grupos:
+ *                   type: integer
+ *                   example: 12
+ *                 items:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/GrupoProductos'
+ *       400:
+ *         description: Parámetros inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: API key requerida
+ *       403:
+ *         description: API key inválida
+ *       404:
+ *         description: Categoría, almacén o productos no encontrados
  */
 export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
-    app.get('/api/productos/:id', async (req, res) => {
-        const categoriaParam = req.params.id;
+    app.post('/api/productos', authenticateApiKey, async (req, res) => {
+        // Obtener categoría del body (puede ser ID o nombre)
+        const categoriaId = req.body?.categoria_id;
+        const categoriaNombre = req.body?.categoria_nombre;
+        const almacenId = parseInt(req.body?.almacen_id) || 2; // Por defecto almacén 2
+        
+        // Validar que al menos uno esté presente
+        if (!categoriaId && !categoriaNombre) {
+            return res.status(400).json({
+                success: false,
+                message: "Debe proporcionar 'categoria_id' o 'categoria_nombre' en el body.",
+                error: "PARAMETRO_FALTANTE"
+            });
+        }
+
+        // 1. VALIDAR ALMACÉN PRIMERO
+        console.log(`🔍 Validando almacén ID: ${almacenId}...`);
+        const validacionAlmacen = await validarAlmacen(almacenId);
+        
+        if (!validacionAlmacen.existe) {
+            return res.status(404).json({
+                success: false,
+                message: `El almacén con ID ${almacenId} no existe.`,
+                error: "ALMACEN_NO_ENCONTRADO",
+                almacen_id: almacenId
+            });
+        }
+        
+        console.log(`✅ Almacén validado: ${validacionAlmacen.nombre} (ID: ${almacenId})`);
+        
         let categoriaIdNum = null;
 
         // 1. ENTRADA: Detectar si es ID numérico o nombre de categoría
-        const categoriaIdParseado = parseInt(categoriaParam);
-        
-        if (!isNaN(categoriaIdParseado) && categoriaIdParseado > 0) {
-            categoriaIdNum = categoriaIdParseado;
-        } else {
+        if (categoriaId) {
+            // Si viene categoria_id, usarlo directamente
+            const categoriaIdParseado = parseInt(categoriaId);
+            if (!isNaN(categoriaIdParseado) && categoriaIdParseado > 0) {
+                categoriaIdNum = categoriaIdParseado;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: "El 'categoria_id' debe ser un número válido."
+                });
+            }
+        } else if (categoriaNombre) {
             // Es un nombre, buscar el ID internamente
-            console.log(`🔍 Buscando categoría por nombre: "${categoriaParam}"`);
-            categoriaIdNum = await buscarCategoriaPorNombre(categoriaParam, cacheCategorias, API_BASE_URL, PERSEO_API_KEY);
+            console.log(`🔍 Buscando categoría por nombre: "${categoriaNombre}"`);
+            categoriaIdNum = await buscarCategoriaPorNombre(categoriaNombre, cacheCategorias, API_BASE_URL, PERSEO_API_KEY);
             
             if (!categoriaIdNum) {
                 return res.status(404).json({
                     success: false,
-                    message: `No se encontró la categoría "${categoriaParam}". Verifica que el nombre sea correcto.`
+                    message: `La categoría "${categoriaNombre}" no existe. Verifica que el nombre sea correcto.`,
+                    error: "CATEGORIA_NO_ENCONTRADA",
+                    categoria_nombre: categoriaNombre
                 });
             }
             
-            console.log(`✅ Categoría "${categoriaParam}" encontrada con ID: ${categoriaIdNum}`);
+            console.log(`✅ Categoría "${categoriaNombre}" encontrada con ID: ${categoriaIdNum}`);
         }
 
         const cacheKey = `productos_categoria_${categoriaIdNum}`;
@@ -54,7 +155,7 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             const urlProductos = `${API_BASE_URL}/productos_consulta`;
             console.log(`\n📡 PETICIÓN INTERNA #1: Consulta de productos`);
             console.log(`   🔗 URL: ${urlProductos}`);
-            console.log(`   📍 Origen: GET /api/productos/${categoriaIdNum}`);
+            console.log(`   📍 Origen: POST /api/productos`);
             console.log(`   📦 Parámetros: categoriasid=${categoriaIdNum}`);
             console.log(`   ⏱️  Iniciando petición...`);
             
@@ -74,7 +175,9 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             if (productosRaw.length === 0) {
                 return res.status(404).json({
                     success: false,
-                    message: "No se encontraron productos en esta categoría."
+                    message: `No se encontraron productos en la categoría ${categoriaIdNum}.`,
+                    error: "PRODUCTOS_NO_ENCONTRADOS",
+                    categoria_id: categoriaIdNum
                 });
             }
 
@@ -110,9 +213,10 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             }
 
             console.log(`🚀 Iniciando hidratación de imágenes (optimizado para velocidad)...`);
+            console.log(`🏪 Almacén configurado para existencias: ID ${almacenId}`);
 
-            // 3. Hidratar productos con imágenes
-            const productosHidratados = await hidratarProductosConImagenes(productosRaw);
+            // 3. Hidratar productos con imágenes y existencias
+            const productosHidratados = await hidratarProductosConImagenes(productosRaw, almacenId);
 
             // 4. Agrupación lógica en memoria
             const resultadoFinal = agruparProductos(productosHidratados);
@@ -169,25 +273,38 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             if (error.response) {
                 console.error("   Status HTTP:", error.response.status);
                 console.error("   Data:", error.response.data);
+                
+                // Errores específicos de Perseo
+                if (error.response.status === 404) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "La categoría solicitada no existe en Perseo.",
+                        error: "CATEGORIA_NO_ENCONTRADA_EN_PERSEO",
+                        status: error.response.status
+                    });
+                }
+                
                 res.status(error.response.status || 500).json({
                     success: false,
                     message: "Error al conectar con el servidor de Perseo.",
-                    error: error.response.data,
+                    error: "ERROR_CONEXION_PERSEO",
+                    detalles: error.response.data,
                     status: error.response.status
                 });
             } else if (error.request) {
                 console.error("   No se recibió respuesta del servidor");
                 res.status(503).json({
                     success: false,
-                    message: "No se pudo conectar con el servidor de Perseo.",
-                    error: "Timeout o error de red"
+                    message: "No se pudo conectar con el servidor de Perseo. Verifica tu conexión a internet.",
+                    error: "ERROR_TIMEOUT_PERSEO"
                 });
             } else {
                 console.error("   Error completo:", error);
                 res.status(500).json({
                     success: false,
-                    message: "Error al procesar la solicitud.",
-                    error: process.env.NODE_ENV === 'development' ? error.message : "Error interno del servidor",
+                    message: "Error interno al procesar la solicitud.",
+                    error: "ERROR_INTERNO",
+                    detalles: process.env.NODE_ENV === 'development' ? error.message : undefined,
                     type: error.name || 'UnknownError'
                 });
             }

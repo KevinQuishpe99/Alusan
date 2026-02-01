@@ -29,18 +29,24 @@ npm install
 
 ```env
 PORT=3001
-PERSEO_API_KEY=tu_api_key_aqui
+PERSEO_API_KEY=SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-
 API_BASE_URL=https://accesoalnusan.app/api
+API_KEY=SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-
+API_SECRET_KEY=clave_secreta_para_cifrado_opcional
 ALMACEN_ID=2
 IMAGE_REQUEST_TIMEOUT=10000
 ```
 
 **Variables de entorno:**
 - `PORT` - Puerto del servidor (default: 3001)
-- `PERSEO_API_KEY` - API Key de Perseo
+- `PERSEO_API_KEY` - API Key de Perseo (para consultas internas a Perseo)
 - `API_BASE_URL` - URL base de la API de Perseo (default: https://accesoalnusan.app/api)
+- `API_KEY` - API Key para autenticación de los endpoints (default: usa el mismo valor que PERSEO_API_KEY)
+- `API_SECRET_KEY` - Clave secreta para cifrado (opcional, se genera automáticamente si no se proporciona)
 - `ALMACEN_ID` - ID del almacén para consultar existencias (default: 2)
 - `IMAGE_REQUEST_TIMEOUT` - Timeout para peticiones de imágenes en ms (default: 10000)
+
+**Nota importante:** Por defecto, `API_KEY` usa el mismo valor que `PERSEO_API_KEY`. Si quieres usar una API key diferente para autenticación, puedes configurar `API_KEY` por separado.
 
 ## 🏃 Ejecución
 
@@ -56,23 +62,85 @@ npm run dev
 
 El servidor estará disponible en `http://localhost:3001`
 
+## 📚 Documentación Swagger
+
+La documentación interactiva de la API está disponible en:
+
+```
+http://localhost:3001/api-docs
+```
+
+Puedes explorar todos los endpoints, ver ejemplos de peticiones y respuestas, y probar la API directamente desde la interfaz de Swagger.
+
+**Nota:** En los ejemplos de Swagger, el campo `api_key` aparece vacío (`""`) por seguridad. Debes usar tu API key real al hacer las peticiones.
+
 ## 📡 Endpoints
 
-### GET `/api/productos/:id` o `/api/productos/:nombre`
+### 🔐 Autenticación
 
-Obtiene productos agrupados por código padre de una categoría específica. **Internamente procesa todo**: obtiene productos, descarga imágenes en paralelo, las comprime a WebP y las agrupa por código padre.
+**TODOS los endpoints requieren autenticación mediante API key en el body de la petición (incluyendo /api/health).**
 
-**Parámetros:**
-- `:id` - ID numérico de la categoría (ej: `126`)
-- `:nombre` - Nombre de la categoría (ej: `VARIEDADES`)
+La API key se almacena como hash SHA-256 para mayor seguridad y se valida mediante comparación segura contra timing attacks.
+
+**Ejemplo de body con API key:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+**Nota:** La API key es la misma que se usa para consultas a Perseo (`PERSEO_API_KEY`). Por defecto, `API_KEY` usa el mismo valor que `PERSEO_API_KEY`, pero puedes configurarla por separado si lo deseas.
+
+### POST `/api/productos`
+
+Obtiene productos agrupados por código padre de una categoría específica. **Internamente procesa todo**: obtiene productos, descarga imágenes en paralelo, las comprime a WebP, consulta existencias del almacén configurado y las agrupa por código padre.
+
+**Body requerido:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-",
+  "categoria_id": 126,
+  "almacen_id": 2
+}
+```
+O usando nombre de categoría:
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-",
+  "categoria_nombre": "VARIEDADES",
+  "almacen_id": 2
+}
+```
+
+**Parámetros del body:**
+- `api_key` (requerido) - API Key de autenticación
+- `categoria_id` (opcional) - ID numérico de la categoría (ej: `126`)
+- `categoria_nombre` (opcional) - Nombre de la categoría (ej: `VARIEDADES`)
+- `almacen_id` (opcional) - ID del almacén para consultar existencias (default: `2`)
+
+**Nota:** Debe proporcionar `categoria_id` o `categoria_nombre`, no ambos. Si no se envía `almacen_id`, se usará el almacén 2 por defecto.
 
 **Ejemplo de uso:**
 ```bash
 # Usando ID de categoría (más rápido)
-GET http://localhost:3001/api/productos/126
+POST http://localhost:3001/api/productos
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-",
+  "categoria_id": 126,
+  "almacen_id": 2
+}
 
 # Usando nombre de categoría
-GET http://localhost:3001/api/productos/VARIEDADES
+POST http://localhost:3001/api/productos
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-",
+  "categoria_nombre": "VARIEDADES",
+  "almacen_id": 2
+}
 ```
 
 **Respuesta:**
@@ -86,7 +154,7 @@ GET http://localhost:3001/api/productos/VARIEDADES
   "productos": [
     {
       "codigo_padre": "JARTER00021",
-      "tiene_variables": true,
+      "tiene_variantes": true,
       "variantes": [
         {
           "productosid": 1201,
@@ -135,22 +203,110 @@ GET http://localhost:3001/api/categorias
 ]
 ```
 
-### GET `/api/cache/stats`
+### POST `/api/almacenes`
+
+Lista todos los almacenes disponibles en Perseo.
+
+**Body requerido:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+**Ejemplo de uso:**
+```bash
+POST http://localhost:3001/api/almacenes
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "total": 35,
+  "almacenes": [
+    {
+      "id": 1,
+      "nombre": "3. NS 10 DE AGOSTO"
+    },
+    {
+      "id": 2,
+      "nombre": "2. CEDI PROMOCIONAL"
+    },
+    {
+      "id": 3,
+      "nombre": "T. 4R QUITO"
+    }
+  ]
+}
+```
+
+### POST `/api/cache/stats`
 
 Obtiene estadísticas del caché (hits, misses, keys).
 
-**Ejemplo de uso:**
-```bash
-GET http://localhost:3001/api/cache/stats
+**Body requerido:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
 ```
 
-### DELETE `/api/cache/clear`
+**Ejemplo de uso:**
+```bash
+POST http://localhost:3001/api/cache/stats
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+### POST `/api/cache/clear`
 
 Limpia todo el caché manualmente.
 
+**Body requerido:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
 **Ejemplo de uso:**
 ```bash
-DELETE http://localhost:3001/api/cache/clear
+POST http://localhost:3001/api/cache/clear
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+### POST `/api/health`
+
+Verifica el estado del servidor y configuración.
+
+**Body requerido:**
+```json
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
+```
+
+**Ejemplo de uso:**
+```bash
+POST http://localhost:3001/api/health
+Content-Type: application/json
+
+{
+  "api_key": "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-"
+}
 ```
 
 ## 🏗️ Arquitectura
@@ -199,8 +355,10 @@ El proyecto está estructurado en tres capas principales:
 3. **Configurar las siguientes variables de entorno** en Render:
 
 ```
-PERSEO_API_KEY=tu_api_key_aqui
+PERSEO_API_KEY=SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-
 API_BASE_URL=https://accesoalnusan.app/api
+API_KEY=SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-
+ALMACEN_ID=2
 PORT=10000
 ```
 
