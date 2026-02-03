@@ -2,49 +2,8 @@ import { obtenerAlmacenes } from '../services/almacenService.js';
 import { authenticateApiKey } from '../middleware/auth.js';
 
 /**
- * @swagger
- * /api/almacenes:
- *   post:
- *     summary: Lista todos los almacenes disponibles en Perseo
- *     tags: [Almacenes]
- *     security:
- *       - ApiKeyAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - api_key
- *             properties:
- *               api_key:
- *                 type: string
- *                 example: ""
- *     responses:
- *       200:
- *         description: Lista de almacenes
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 total:
- *                   type: integer
- *                   example: 35
- *                 almacenes:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Almacen'
- *       401:
- *         description: API key requerida
- *       403:
- *         description: API key inválida
- *       404:
- *         description: No se encontraron almacenes
+ * Endpoint: POST /api/almacenes
+ * Lista todos los almacenes disponibles en Perseo
  */
 export function setupAlmacenesRoutes(app) {
     app.post('/api/almacenes', authenticateApiKey, async (req, res) => {

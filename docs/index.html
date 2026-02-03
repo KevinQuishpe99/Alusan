@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perseo API - Documentación</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        
+        .wrapper {
+            display: flex;
+            max-width: 100%;
+            margin: 0;
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        .sidebar h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .sidebar ul {
+            list-style: none;
+        }
+        
+        .sidebar li {
+            margin: 8px 0;
+        }
+        
+        .sidebar a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 12px;
+            display: block;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-size: 0.9em;
+        }
+        
+        .sidebar a:hover {
+            background: #f0f0f0;
+        }
+        
+        .content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 20px;
+            max-width: 100%;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .section h3 {
+            color: #764ba2;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        
+        .section h4 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .endpoint {
+            background: #f8f9fa;
+            padding: 25px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 5px 15px;
+            background: #667eea;
+            color: white;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.5;
+            white-space: pre;
+            word-wrap: normal;
+        }
+        
+        .info-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .error-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        
+        .param-item {
+            margin: 8px 0;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .param-item strong {
+            color: #667eea;
+            font-size: 1.1em;
+        }
+        
+        .param-item code {
+            background: #e9ecef;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .required {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .optional {
+            color: #6c757d;
+        }
+        
+        ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .content {
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="content">
+            <header>
+                <h1>🚀 Perseo API Server</h1>
+                <p>Documentación completa de la API - Versión 1.0.0</p>
+                <p style="margin-top: 10px; font-size: 0.9em;">API para procesamiento optimizado de productos con agrupación por código padre</p>
+            </header>
+
+            <div class="section" id="introduccion">
+                <h2>📖 Introducción</h2>
+                <p>Esta API actúa como middleware optimizado entre tu aplicación y el sistema Perseo. Procesa productos, descarga imágenes en paralelo, consulta existencias de almacenes y agrupa productos por código padre.</p>
+                
+                <h3>Características Principales</h3>
+                <ul>
+                    <li><strong>Procesamiento Paralelo:</strong> Descarga hasta 100 imágenes simultáneamente</li>
+                    <li><strong>Agrupación Inteligente:</strong> Agrupa productos por código padre (ej: JARTER00021-az → JARTER00021)</li>
+                    <li><strong>Consulta de Existencias:</strong> Obtiene stock de almacenes específicos</li>
+                </ul>
+
+                <div class="info-box">
+                    <strong>📍 URL Base:</strong> <code>https://alusan.onrender.com</code><br>
+                    <strong>🔐 Autenticación:</strong> Todos los endpoints requieren <code>api_key</code> en el body
+                </div>
+            </div>
+
+            <div class="section" id="categorias">
+                <h2>📂 Categorías</h2>
+                
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/categorias</h3>
+                    <p>Obtiene todas las categorías con información completa.</p>
+                    
+                    <h4>📤 Cómo Enviar (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui"
+}
+                    </div>
+                    
+                    <h4>📥 Cómo Retorna (Response 200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "data": [
+        {
+            "productos_categoriasid": 126,
+            "descripcion": "VARIEDADES",
+            "activo": true,
+            "fecha_creacion": "2024-01-01T00:00:00.000Z"
+        },
+        {
+            "productos_categoriasid": 127,
+            "descripcion": "ELECTRÓNICOS",
+            "activo": true,
+            "fecha_creacion": "2024-01-01T00:00:00.000Z"
+        }
+    ]
+}
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/categorias/list</h3>
+                    <p>Obtiene una lista simplificada de categorías (solo ID y nombre). Ideal para dropdowns o listas.</p>
+                    
+                    <h4>📤 Cómo Enviar (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui"
+}
+                    </div>
+                    
+                    <h4>📥 Cómo Retorna (Response 200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "total": 25,
+    "categorias": [
+        {
+            "id": 126,
+            "nombre": "VARIEDADES"
+        },
+        {
+            "id": 127,
+            "nombre": "ELECTRÓNICOS"
+        },
+        {
+            "id": 128,
+            "nombre": "ROPA"
+        }
+    ]
+}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="almacenes">
+                <h2>🏪 Almacenes</h2>
+                
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/almacenes</h3>
+                    <p>Lista todos los almacenes disponibles en Perseo. Útil para validar almacen_id antes de consultar productos.</p>
+                    
+                    <h4>📤 Cómo Enviar (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui"
+}
+                    </div>
+                    
+                    <h4>📥 Cómo Retorna (Response 200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "total": 35,
+    "almacenes": [
+        {
+            "id": 2,
+            "nombre": "2. CEDI PROMOCIONAL"
+        },
+        {
+            "id": 3,
+            "nombre": "3. ALMACÉN CENTRAL"
+        },
+        {
+            "id": 4,
+            "nombre": "4. SUCURSAL NORTE"
+        }
+    ]
+}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="productos">
+                <h2>📦 Productos</h2>
+                
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/productos</h3>
+                    <p>Obtiene productos agrupados por código padre con imágenes y existencias del almacén especificado.</p>
+                    
+                    <h4>Parámetros del Request Body:</h4>
+                    
+                    <div class="param-item">
+                        <strong>api_key</strong> <span class="required">(Requerido)</span><br>
+                        <code>string</code> - API Key de autenticación
+                    </div>
+                    
+                    <div class="param-item">
+                        <strong>categoria_id</strong> <span class="optional">(Opcional*)</span><br>
+                        <code>integer</code> - ID numérico de la categoría (ej: 126)
+                    </div>
+                    
+                    <div class="param-item">
+                        <strong>categoria_nombre</strong> <span class="optional">(Opcional*)</span><br>
+                        <code>string</code> - Nombre de la categoría (ej: "VARIEDADES") - Case-insensitive
+                    </div>
+                    
+                    <div class="param-item">
+                        <strong>almacen_id</strong> <span class="required">(Requerido)</span><br>
+                        <code>integer</code> - ID del almacén para consultar existencias (ej: 2)
+                    </div>
+                    
+                    <div class="info-box">
+                        <strong>Nota:</strong> Debe proporcionarse al menos uno: <code>categoria_id</code> o <code>categoria_nombre</code>
+                    </div>
+                    
+                    <h4>📤 Ejemplo 1: Por ID de Categoría (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui",
+    "categoria_id": 126,
+    "almacen_id": 2
+}
+                    </div>
+                    
+                    <h4>📥 Ejemplo 1: Response (200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "categoria_consultada": 126,
+    "total_grupos": 12,
+    "items": [
+        {
+            "codigo_padre": "JARTER00021",
+            "tiene_variantes": true,
+            "variantes": [
+                {
+                    "productosid": 1201,
+                    "productocodigo": "JARTER00021-az",
+                    "descripcion": "Cartera Elegante Azul",
+                    "precio": 45.00,
+                    "existenciastotales": 359,
+                    "imagenes_data": [
+                        "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA="
+                    ]
+                },
+                {
+                    "productosid": 1202,
+                    "productocodigo": "JARTER00021-ro",
+                    "descripcion": "Cartera Elegante Roja",
+                    "precio": 45.00,
+                    "existenciastotales": 125,
+                    "imagenes_data": [
+                        "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA="
+                    ]
+                }
+            ]
+        },
+        {
+            "codigo_padre": "BOLSO00123",
+            "tiene_variantes": false,
+            "variantes": [
+                {
+                    "productosid": 1205,
+                    "productocodigo": "BOLSO00123",
+                    "descripcion": "Bolso Deportivo",
+                    "precio": 89.99,
+                    "existenciastotales": 45,
+                    "imagenes_data": [
+                        "data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA="
+                    ]
+                }
+            ]
+        }
+    ]
+}
+                    </div>
+                    
+                    <h4>📤 Ejemplo 2: Por Nombre de Categoría (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui",
+    "categoria_nombre": "VARIEDADES",
+    "almacen_id": 2
+}
+                    </div>
+                    
+                    <h4>📥 Ejemplo 2: Response (200 OK):</h4>
+                    <p style="margin-top: 10px;">La respuesta es idéntica al Ejemplo 1, ya que ambos consultan la misma categoría.</p>
+                    
+                    <div class="info-box">
+                        <strong>💡 Notas Importantes:</strong>
+                        <ul>
+                            <li>Los productos se agrupan por <strong>código padre</strong> (parte antes del guion)</li>
+                            <li>El campo <code>existenciastotales</code> corresponde al almacén especificado en <code>almacen_id</code></li>
+                            <li>Si un producto tiene múltiples imágenes, todas vienen en el array <code>imagenes_data</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="cache">
+                <h2>💾 Cache</h2>
+                
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/cache/stats</h3>
+                    <p>Obtiene estadísticas del caché (keys, hits, misses) para categorías y productos.</p>
+                    
+                    <h4>📤 Cómo Enviar (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui"
+}
+                    </div>
+                    
+                    <h4>📥 Cómo Retorna (Response 200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "categorias": {
+        "keys": 5,
+        "hits": 120,
+        "misses": 10,
+        "ttl": 1800
+    },
+    "productos": {
+        "keys": 8,
+        "hits": 45,
+        "misses": 12,
+        "ttl": 900
+    }
+}
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method">POST</span> api/cache/clear</h3>
+                    <p>Limpia todo el caché de categorías y productos. Útil después de actualizaciones en Perseo.</p>
+                    
+                    <h4>📤 Cómo Enviar (Request Body):</h4>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui"
+}
+                    </div>
+                    
+                    <h4>📥 Cómo Retorna (Response 200 OK):</h4>
+                    <div class="code-block">
+{
+    "success": true,
+    "message": "Caché limpiado correctamente."
+}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="errores">
+                <h2>❌ Códigos de Error</h2>
+                
+                <div class="endpoint">
+                    <h3>Formato de Error</h3>
+                    <p>Todos los errores siguen este formato:</p>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "Mensaje descriptivo del error",
+    "error": "CODIGO_ERROR"
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>400 - Parámetro Faltante</h3>
+                    <p><strong>Descripción:</strong> Parámetros inválidos o faltantes</p>
+                    
+                    <h4>Ejemplo 1: Falta categoria_id o categoria_nombre</h4>
+                    <p><strong>Request Body enviado:</strong></p>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui",
+    "almacen_id": 2
+}
+                    </div>
+                    
+                    <h4>📥 Response (400 Bad Request):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "Debe proporcionar 'categoria_id' o 'categoria_nombre' en el body.",
+    "error": "PARAMETRO_FALTANTE"
+}
+                    </div>
+                    
+                    <h4>Ejemplo 2: Falta almacen_id</h4>
+                    <p><strong>Request Body enviado:</strong></p>
+                    <div class="code-block">
+{
+    "api_key": "poner_la_api_key_aqui",
+    "categoria_id": 126
+}
+                    </div>
+                    
+                    <h4>📥 Response (400 Bad Request):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "El parámetro 'almacen_id' es obligatorio. Debe proporcionar el ID del almacén.",
+    "error": "PARAMETRO_FALTANTE",
+    "parametro_faltante": "almacen_id"
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>401 - API Key Requerida</h3>
+                    <p><strong>Descripción:</strong> No se envió <code>api_key</code> en el body</p>
+                    
+                    <h4>📥 Response (401 Unauthorized):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "API key requerida. Debe enviar 'api_key' en el body de la petición."
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>403 - API Key Inválida</h3>
+                    <p><strong>Descripción:</strong> El <code>api_key</code> proporcionado no es válido</p>
+                    
+                    <h4>📥 Response (403 Forbidden):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "API key inválida."
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>404 - Almacén No Encontrado</h3>
+                    <p><strong>Descripción:</strong> El almacén especificado no existe</p>
+                    
+                    <h4>📥 Response (404 Not Found):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "El almacén con ID 999 no existe.",
+    "error": "ALMACEN_NO_ENCONTRADO",
+    "almacen_id": 999
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>404 - Categoría No Encontrada</h3>
+                    <p><strong>Descripción:</strong> La categoría especificada no existe</p>
+                    
+                    <h4>📥 Response (404 Not Found):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "La categoría \"CATEGORIA_INEXISTENTE\" no existe. Verifica que el nombre sea correcto.",
+    "error": "CATEGORIA_NO_ENCONTRADA",
+    "categoria_nombre": "CATEGORIA_INEXISTENTE"
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>500 - Error Interno del Servidor</h3>
+                    <p><strong>Descripción:</strong> Error al procesar la solicitud</p>
+                    
+                    <h4>📥 Response (500 Internal Server Error):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "Error al procesar la solicitud.",
+    "error": "ERROR_INTERNO"
+}
+                    </div>
+                </div>
+                
+                <div class="endpoint">
+                    <h3>503 - Servicio No Disponible</h3>
+                    <p><strong>Descripción:</strong> No se pudo conectar con el servidor de Perseo</p>
+                    
+                    <h4>📥 Response (503 Service Unavailable):</h4>
+                    <div class="code-block">
+{
+    "success": false,
+    "message": "No se pudo conectar con el servidor de Perseo.",
+    "error": "ERROR_TIMEOUT_PERSEO"
+}
+                    </div>
+                </div>
+            </div>
+
+            <footer style="text-align: center; padding: 40px 20px; color: #6c757d; margin-top: 50px;">
+                <p>Perseo API Server - Versión 1.0.0</p>
+                <p style="margin-top: 10px;">Documentación generada el 2024</p>
+            </footer>
+        </div>
+        
+        <div class="sidebar">
+            <h2>📑 Índice</h2>
+            <ul>
+                <li><a href="#introduccion">Introducción</a></li>
+                <li><a href="#categorias">Categorías</a></li>
+                <li><a href="#almacenes">Almacenes</a></li>
+                <li><a href="#productos">Productos</a></li>
+                <li><a href="#cache">Cache</a></li>
+                <li><a href="#errores">Códigos de Error</a></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

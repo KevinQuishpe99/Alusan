@@ -1,15 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import swaggerUi from 'swagger-ui-express';
 import NodeCache from 'node-cache';
 import { PORT, CACHE_TTL_CATEGORIAS, CACHE_TTL_PRODUCTOS, MAX_CONCURRENT_REQUESTS, MAX_CONCURRENT_COMPRESSION } from './config/index.js';
 import { requestLogger } from './middleware/logger.js';
-import { swaggerSpec } from './config/swagger.js';
 import { setupCategoriasRoutes } from './routes/categorias.js';
 import { setupProductosRoutes } from './routes/productos.js';
 import { setupAlmacenesRoutes } from './routes/almacenes.js';
 import { setupCacheRoutes } from './routes/cache.js';
-import { setupHealthRoute } from './routes/health.js';
 
 const app = express();
 
@@ -18,23 +15,19 @@ app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
 
+// Servir documentación estática
+app.use('/docs', express.static('docs'));
+
 // Redirección de raíz a documentación
 app.get('/', (req, res) => {
-    res.redirect('/api-docs');
+    res.redirect('/docs');
 });
-
-// Swagger Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Perseo API Documentation'
-}));
 
 // Configuración de caché
 const cacheCategorias = new NodeCache({ stdTTL: CACHE_TTL_CATEGORIAS });
 const cacheProductos = new NodeCache({ stdTTL: CACHE_TTL_PRODUCTOS });
 
 // Configurar rutas
-setupHealthRoute(app);
 setupCategoriasRoutes(app, cacheCategorias);
 setupAlmacenesRoutes(app);
 setupProductosRoutes(app, cacheProductos, cacheCategorias);
@@ -45,8 +38,8 @@ app.listen(PORT, () => {
     console.log('\n🚀 Servidor intermedio optimizado listo');
     console.log(`📍 URL: http://localhost:${PORT}\n`);
     console.log('📡 Endpoints disponibles (todos requieren API key en el body):');
-    console.log(`   GET  /api-docs                    - Documentación Swagger`);
-    console.log(`   POST /api/health                  - Estado del servidor y configuración`);
+    console.log(`   GET  /                            - Redirige a documentación (/docs)`);
+    console.log(`   GET  /docs                        - Documentación estática HTML`);
     console.log(`   POST /api/categorias              - Lista todas las categorías completas (caché: ${CACHE_TTL_CATEGORIAS}s)`);
     console.log(`   POST /api/categorias/list          - Lista simplificada de categorías (solo ID y nombre)`);
     console.log(`   POST /api/almacenes               - Lista todos los almacenes disponibles`);

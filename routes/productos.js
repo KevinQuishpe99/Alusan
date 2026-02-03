@@ -5,80 +5,18 @@ import { authenticateApiKey } from '../middleware/auth.js';
 import { validarAlmacen } from '../services/almacenService.js';
 
 /**
- * @swagger
- * /api/productos:
- *   post:
- *     summary: Obtiene productos agrupados por código padre con imágenes y existencias
- *     description: Trae productos, descarga imágenes en paralelo, las comprime a WebP, consulta existencias del almacén y agrupa por código padre
- *     tags: [Productos]
- *     security:
- *       - ApiKeyAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - api_key
- *             properties:
- *               api_key:
- *                 type: string
- *                 example: ""
- *               categoria_id:
- *                 type: integer
- *                 example: 126
- *                 description: ID numérico de la categoría (opcional si se envía categoria_nombre)
- *               categoria_nombre:
- *                 type: string
- *                 example: "VARIEDADES"
- *                 description: Nombre de la categoría (opcional si se envía categoria_id)
- *               almacen_id:
- *                 type: integer
- *                 example: 2
- *                 description: ID del almacén para consultar existencias (opcional, default 2)
- *     responses:
- *       200:
- *         description: Productos agrupados por código padre
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 categoria_consultada:
- *                   type: integer
- *                   example: 126
- *                 total_grupos:
- *                   type: integer
- *                   example: 12
- *                 items:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/GrupoProductos'
- *       400:
- *         description: Parámetros inválidos
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       401:
- *         description: API key requerida
- *       403:
- *         description: API key inválida
- *       404:
- *         description: Categoría, almacén o productos no encontrados
+ * Endpoint: POST /api/productos
+ * Obtiene productos agrupados por código padre con imágenes y existencias
+ * Trae productos, descarga imágenes en paralelo, las comprime a WebP, consulta existencias del almacén y agrupa por código padre
  */
 export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
     app.post('/api/productos', authenticateApiKey, async (req, res) => {
         // Obtener categoría del body (puede ser ID o nombre)
         const categoriaId = req.body?.categoria_id;
         const categoriaNombre = req.body?.categoria_nombre;
-        const almacenId = parseInt(req.body?.almacen_id) || 2; // Por defecto almacén 2
+        const almacenId = req.body?.almacen_id;
         
-        // Validar que al menos uno esté presente
+        // Validar que al menos uno esté presente (categoria_id o categoria_nombre)
         if (!categoriaId && !categoriaNombre) {
             return res.status(400).json({
                 success: false,
@@ -86,21 +24,42 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 error: "PARAMETRO_FALTANTE"
             });
         }
+        
+        // Validar que almacen_id esté presente
+        if (!almacenId) {
+            return res.status(400).json({
+                success: false,
+                message: "El parámetro 'almacen_id' es obligatorio. Debe proporcionar el ID del almacén.",
+                error: "PARAMETRO_FALTANTE",
+                parametro_faltante: "almacen_id"
+            });
+        }
+        
+        // Validar que almacen_id sea un número válido
+        const almacenIdNum = parseInt(almacenId);
+        if (isNaN(almacenIdNum) || almacenIdNum <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "El 'almacen_id' debe ser un número válido mayor a 0.",
+                error: "PARAMETRO_INVALIDO",
+                almacen_id: almacenId
+            });
+        }
 
         // 1. VALIDAR ALMACÉN PRIMERO
-        console.log(`🔍 Validando almacén ID: ${almacenId}...`);
-        const validacionAlmacen = await validarAlmacen(almacenId);
+        console.log(`🔍 Validando almacén ID: ${almacenIdNum}...`);
+        const validacionAlmacen = await validarAlmacen(almacenIdNum);
         
         if (!validacionAlmacen.existe) {
             return res.status(404).json({
                 success: false,
-                message: `El almacén con ID ${almacenId} no existe.`,
+                message: `El almacén con ID ${almacenIdNum} no existe.`,
                 error: "ALMACEN_NO_ENCONTRADO",
-                almacen_id: almacenId
+                almacen_id: almacenIdNum
             });
         }
         
-        console.log(`✅ Almacén validado: ${validacionAlmacen.nombre} (ID: ${almacenId})`);
+        console.log(`✅ Almacén validado: ${validacionAlmacen.nombre} (ID: ${almacenIdNum})`);
         
         let categoriaIdNum = null;
 
@@ -213,10 +172,10 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             }
 
             console.log(`🚀 Iniciando hidratación de imágenes (optimizado para velocidad)...`);
-            console.log(`🏪 Almacén configurado para existencias: ID ${almacenId}`);
+            console.log(`🏪 Almacén configurado para existencias: ID ${almacenIdNum}`);
 
             // 3. Hidratar productos con imágenes y existencias
-            const productosHidratados = await hidratarProductosConImagenes(productosRaw, almacenId);
+            const productosHidratados = await hidratarProductosConImagenes(productosRaw, almacenIdNum);
 
             // 4. Agrupación lógica en memoria
             const resultadoFinal = agruparProductos(productosHidratados);

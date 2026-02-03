@@ -6,47 +6,8 @@ import { authenticateApiKey } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
- * @swagger
- * /api/categorias/list:
- *   post:
- *     summary: Lista simplificada de categorías (solo ID y nombre)
- *     tags: [Categorías]
- *     security:
- *       - ApiKeyAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - api_key
- *             properties:
- *               api_key:
- *                 type: string
- *                 example: ""
- *     responses:
- *       200:
- *         description: Lista de categorías simplificada
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 total:
- *                   type: integer
- *                   example: 25
- *                 categorias:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Categoria'
- *       401:
- *         description: API key requerida
- *       403:
- *         description: API key inválida
+ * Endpoint: POST /api/categorias/list
+ * Lista simplificada de categorías (solo ID y nombre)
  */
 export function setupCategoriasRoutes(app, cacheCategorias) {
     app.post('/api/categorias/list', authenticateApiKey, async (req, res) => {
@@ -101,44 +62,8 @@ export function setupCategoriasRoutes(app, cacheCategorias) {
     });
 
     /**
-     * @swagger
-     * /api/categorias:
-     *   post:
-     *     summary: Lista todas las categorías completas
-     *     tags: [Categorías]
-     *     security:
-     *       - ApiKeyAuth: []
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             type: object
-     *             required:
-     *               - api_key
-     *             properties:
-     *               api_key:
-     *                 type: string
-     *                 example: ""
-     *     responses:
-     *       200:
-     *         description: Lista completa de categorías
-     *         content:
-     *           application/json:
-     *             schema:
-     *               type: object
-     *               properties:
-     *                 success:
-     *                   type: boolean
-     *                   example: true
-     *                 data:
-     *                   type: array
-     *                   items:
-     *                     type: object
-     *       401:
-     *         description: API key requerida
-     *       403:
-     *         description: API key inválida
+     * Endpoint: POST /api/categorias
+     * Lista todas las categorías completas
      */
     app.post('/api/categorias', authenticateApiKey, async (req, res) => {
         const cacheKey = 'categorias_all';
