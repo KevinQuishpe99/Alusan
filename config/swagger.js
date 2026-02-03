@@ -29,11 +29,6 @@ FUNCIONALIDADES PRINCIPALES:
    - Validación de almacenes y categorías antes de procesar
    - Estadísticas y gestión de caché
 
-SEGURIDAD:
-- Autenticación mediante API Key (misma que Perseo)
-- Validación de almacenes y categorías antes de procesar
-- Mensajes de error personalizados y descriptivos
-
 ESTRUCTURA DE RESPUESTA:
 Los productos se agrupan por código padre (parte antes del guion). Si un producto tiene código "JARTER00021-az", el código padre es "JARTER00021". Las variantes del mismo producto se agrupan juntas, y cada grupo indica si tiene variantes (tiene_variantes: true/false).
 
@@ -54,7 +49,7 @@ PERFORMANCE:
                 description: 'Servidor de desarrollo'
             },
             {
-                url: 'https://tu-servidor-render.com',
+                url: 'https://alusan.onrender.com',
                 description: 'Servidor de producción'
             }
         ],

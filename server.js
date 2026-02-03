@@ -18,6 +18,11 @@ app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
 
+// Redirección de raíz a documentación
+app.get('/', (req, res) => {
+    res.redirect('/api-docs');
+});
+
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     customCss: '.swagger-ui .topbar { display: none }',
