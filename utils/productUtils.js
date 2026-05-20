@@ -1,3 +1,84 @@
+import { obtenerCategorias, obtenerSubcategorias } from '../services/perseoService.js';
+
+const CACHE_KEY_CATEGORIAS_MAPA = 'categorias_mapa_id_nombre';
+const CACHE_KEY_SUBCATEGORIAS_MAPA = 'subcategorias_mapa_id_nombre';
+
+/**
+ * Construye un mapa id → nombre desde un listado de Perseo
+ * @param {Array<{ productos_categoriasid?: number, productos_subcategoriasid?: number, descripcion?: string }>} items
+ * @param {'productos_categoriasid' | 'productos_subcategoriasid'} idField
+ * @returns {Map<number, string>}
+ */
+function construirMapaIdNombre(items, idField) {
+    const mapa = new Map();
+    if (!Array.isArray(items)) {
+        return mapa;
+    }
+    for (const item of items) {
+        const id = item[idField];
+        const nombre = item.descripcion;
+        if (typeof id === 'number' && nombre) {
+            mapa.set(id, String(nombre).trim());
+        }
+    }
+    return mapa;
+}
+
+/**
+ * Mapa categoría id → nombre (con caché en memoria)
+ * @param {import('node-cache')} cacheTaxonomia
+ * @returns {Promise<Map<number, string>>}
+ */
+export async function obtenerMapaCategoriasPorId(cacheTaxonomia) {
+    const cached = cacheTaxonomia.get(CACHE_KEY_CATEGORIAS_MAPA);
+    if (cached instanceof Map) {
+        return cached;
+    }
+
+    const response = await obtenerCategorias();
+    const mapa = construirMapaIdNombre(response?.categorias ?? [], 'productos_categoriasid');
+    cacheTaxonomia.set(CACHE_KEY_CATEGORIAS_MAPA, mapa);
+    return mapa;
+}
+
+/**
+ * Mapa subcategoría id → nombre (con caché en memoria)
+ * @param {import('node-cache')} cacheTaxonomia
+ * @returns {Promise<Map<number, string>>}
+ */
+export async function obtenerMapaSubcategoriasPorId(cacheTaxonomia) {
+    const cached = cacheTaxonomia.get(CACHE_KEY_SUBCATEGORIAS_MAPA);
+    if (cached instanceof Map) {
+        return cached;
+    }
+
+    const response = await obtenerSubcategorias();
+    const mapa = construirMapaIdNombre(response?.subcategorias ?? [], 'productos_subcategoriasid');
+    cacheTaxonomia.set(CACHE_KEY_SUBCATEGORIAS_MAPA, mapa);
+    return mapa;
+}
+
+/**
+ * Añade nombres de categoría y subcategoría a cada producto (variante)
+ * @param {Array<Record<string, unknown>>} productos
+ * @param {Map<number, string>} mapaCategorias
+ * @param {Map<number, string>} mapaSubcategorias
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function enriquecerProductosConNombresTaxonomia(productos, mapaCategorias, mapaSubcategorias) {
+    return productos.map((prod) => {
+        const categoriaId = prod.productos_categoriasid;
+        const subcategoriaId = prod.productos_subcategoriasid;
+        return {
+            ...prod,
+            productos_categorias_nombre:
+                typeof categoriaId === 'number' ? (mapaCategorias.get(categoriaId) ?? null) : null,
+            productos_subcategorias_nombre:
+                typeof subcategoriaId === 'number' ? (mapaSubcategorias.get(subcategoriaId) ?? null) : null
+        };
+    });
+}
+
 /**
  * Función lógica para agrupar por código padre (OPTIMIZADA PARA VELOCIDAD)
  * Usa técnicas de optimización: pre-allocación, indexOf más rápido que split

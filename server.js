@@ -39,7 +39,7 @@ app.listen(PORT, () => {
     console.log(`📍 URL: http://localhost:${PORT}\n`);
     console.log('📡 Endpoints disponibles (todos requieren API key en el body):');
     console.log(`   GET  /                            - Redirige a documentación (/docs)`);
-    console.log(`   GET  /docs                        - Documentación estática HTML`);
+    console.log(`   GET  /docs                        - Documentación interactiva (Scalar + OpenAPI)`);
     console.log(`   POST /api/categorias              - Lista todas las categorías completas (caché: ${CACHE_TTL_CATEGORIAS}s)`);
     console.log(`   POST /api/categorias/list          - Lista simplificada de categorías (solo ID y nombre)`);
     console.log(`   POST /api/almacenes               - Lista todos los almacenes disponibles`);

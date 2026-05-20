@@ -1,0 +1,696 @@
+openapi: 3.1.0
+info:
+  title: Perseo API Server
+  version: 1.0.0
+  description: |
+    # Perseo API Server
+
+    API para procesamiento optimizado de productos con agrupación por código padre.
+
+    Esta API actúa como **middleware optimizado** entre tu aplicación y el sistema Perseo. Procesa productos, descarga imágenes en paralelo, consulta existencias de almacenes y agrupa productos por código padre.
+
+    ## Características principales
+
+    - **Procesamiento paralelo:** descarga hasta 100 imágenes simultáneamente
+    - **Agrupación inteligente:** agrupa por código padre (ej. `JARTER00021-az` → `JARTER00021`)
+    - **Consulta de existencias:** stock del almacén indicado en `almacen_id`
+    - **Nombres de taxonomía:** cada variante incluye `productos_categorias_nombre` y `productos_subcategorias_nombre`
+
+    ## Autenticación
+
+    **Todos los endpoints** requieren `api_key` en el **body** de la petición (no en headers).
+
+    ## Caché
+
+    - Categorías y mapas de nombres: **30 minutos**
+    - Productos por categoría: **15 minutos**
+    - Usa `POST /api/cache/clear` tras cambios en Perseo
+
+    ## Formato de error
+
+    ```json
+    {
+      "success": false,
+      "message": "Mensaje descriptivo del error",
+      "error": "CODIGO_ERROR"
+    }
+    ```
+
+    ### Códigos habituales
+
+    | HTTP | error | Descripción |
+    |------|-------|-------------|
+    | 400 | `PARAMETRO_FALTANTE` | Falta `categoria_id`/`categoria_nombre` o `almacen_id` |
+    | 400 | `PARAMETRO_INVALIDO` | `almacen_id` o `categoria_id` no numérico |
+    | 401 | — | No se envió `api_key` |
+    | 403 | — | `api_key` inválida |
+    | 404 | `ALMACEN_NO_ENCONTRADO` | Almacén inexistente |
+    | 404 | `CATEGORIA_NO_ENCONTRADA` | Categoría por nombre no encontrada |
+    | 404 | `PRODUCTOS_NO_ENCONTRADOS` | Sin productos en la categoría |
+    | 500 | `ERROR_INTERNO` | Error del servidor |
+    | 503 | `ERROR_TIMEOUT_PERSEO` | Sin conexión con Perseo |
+
+  contact:
+    name: Perseo API
+  license:
+    name: Uso interno
+
+servers:
+  - url: http://localhost:3001
+    description: Desarrollo local
+  - url: https://alusan.onrender.com
+    description: Producción (Render)
+
+tags:
+  - name: Categorías
+    description: Consulta de categorías de productos en Perseo.
+  - name: Almacenes
+    description: Listado de almacenes para validar `almacen_id` antes de consultar productos.
+  - name: Productos
+    description: Productos agrupados por código padre, con imágenes WebP y existencias.
+  - name: Caché
+    description: Estadísticas y limpieza del caché en memoria.
+
+paths:
+  /api/categorias:
+    post:
+      tags: [Categorías]
+      summary: Categorías completas
+      description: Obtiene todas las categorías con información completa desde Perseo.
+      operationId: postCategorias
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Lista de categorías
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriasCompletasResponse'
+              examples:
+                ok:
+                  summary: Respuesta exitosa
+                  value:
+                    success: true
+                    data:
+                      - productos_categoriasid: 126
+                        descripcion: VARIEDADES
+                        activo: true
+                        fechacreacion: '2024-01-01T00:00:00.000Z'
+                      - productos_categoriasid: 127
+                        descripcion: ELECTRÓNICOS
+                        activo: true
+                        fechacreacion: '2024-01-01T00:00:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFoundGenerico'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
+
+  /api/categorias/list:
+    post:
+      tags: [Categorías]
+      summary: Categorías simplificadas
+      description: Lista simplificada (solo ID y nombre). Ideal para dropdowns o listas.
+      operationId: postCategoriasList
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Lista simplificada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriasListResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    total: 25
+                    categorias:
+                      - id: 126
+                        nombre: VARIEDADES
+                      - id: 127
+                        nombre: ELECTRÓNICOS
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/almacenes:
+    post:
+      tags: [Almacenes]
+      summary: Listar almacenes
+      description: Lista todos los almacenes disponibles en Perseo. Útil para validar `almacen_id` antes de consultar productos.
+      operationId: postAlmacenes
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Almacenes disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlmacenesResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    total: 35
+                    almacenes:
+                      - id: 2
+                        nombre: 2. CEDI PROMOCIONAL
+                      - id: 3
+                        nombre: 3. ALMACÉN CENTRAL
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Sin almacenes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: No se encontraron almacenes en Perseo.
+                error: ALMACENES_NO_ENCONTRADOS
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
+
+  /api/productos:
+    post:
+      tags: [Productos]
+      summary: Productos por categoría
+      description: |
+        Obtiene productos agrupados por **código padre** con imágenes (WebP en Base64) y existencias del almacén especificado.
+
+        ### Parámetros del body
+
+        | Campo | Tipo | Requerido | Descripción |
+        |-------|------|-----------|-------------|
+        | `api_key` | string | **Sí** | API Key de autenticación |
+        | `categoria_id` | integer | **Uno de dos*** | ID de categoría (ej. `126`) — **no** enviar junto con `categoria_nombre` |
+        | `categoria_nombre` | string | **Uno de dos*** | Nombre (ej. `VARIEDADES`) — **no** enviar junto con `categoria_id` |
+        | `almacen_id` | integer | **Sí** | ID del almacén para existencias (ej. `2`) |
+
+        **\* Regla de categoría:** envía **solo** `categoria_id` **o** solo `categoria_nombre` (3 campos en total con `api_key` y `almacen_id`).  
+        Si por error envías ambos, el servidor usa **`categoria_id`** e ignora el nombre.
+
+        ### Ejemplos válidos de body (elige uno)
+
+        **Opción A — por ID (3 campos):**
+        ```json
+        { "api_key": "...", "categoria_id": 126, "almacen_id": 2 }
+        ```
+
+        **Opción B — por nombre (3 campos):**
+        ```json
+        { "api_key": "...", "categoria_nombre": "VARIEDADES", "almacen_id": 2 }
+        ```
+
+        ### Ejemplos inválidos
+
+        **Sin categoría (falla 400):**
+        ```json
+        { "api_key": "...", "almacen_id": 2 }
+        ```
+
+        **Sin almacén (falla 400):**
+        ```json
+        { "api_key": "...", "categoria_id": 126 }
+        ```
+
+        ### Notas importantes
+
+        - Los productos se agrupan por **código padre** (parte antes del guion en `productocodigo`)
+        - `existenciastotales` corresponde al `almacen_id` indicado
+        - Varias imágenes van en el array `imagenes_data`
+        - Cada variante incluye `productos_categorias_nombre` y `productos_subcategorias_nombre` además de los IDs
+      operationId: postProductos
+      requestBody:
+        required: true
+        description: |
+          Body con **exactamente 3 campos** en casos válidos: `api_key` + `almacen_id` + (**solo** `categoria_id` **o** solo `categoria_nombre`).
+          Usa el desplegable de ejemplos para ver cada caso.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ProductosRequestPorId'
+                - $ref: '#/components/schemas/ProductosRequestPorNombre'
+              description: Elige una de las dos formas válidas (por ID o por nombre). No mezcles ambos campos de categoría.
+            examples:
+              validoPorId:
+                summary: '✅ Válido — solo categoria_id (3 campos)'
+                description: No incluye categoria_nombre.
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_id: 126
+                  almacen_id: 2
+              validoPorNombre:
+                summary: '✅ Válido — solo categoria_nombre (3 campos)'
+                description: No incluye categoria_id.
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_nombre: VARIEDADES
+                  almacen_id: 2
+              invalidoSinCategoria:
+                summary: '❌ Inválido — falta categoría (400)'
+                description: Tiene api_key y almacen_id pero ningún campo de categoría.
+                value:
+                  api_key: poner_la_api_key_aqui
+                  almacen_id: 2
+              invalidoSinAlmacen:
+                summary: '❌ Inválido — falta almacen_id (400)'
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_id: 126
+              invalidoAmbosCategoria:
+                summary: '⚠️ Ambos campos de categoría (no recomendado)'
+                description: Si envías los dos, prevalece categoria_id (126).
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_id: 126
+                  categoria_nombre: VARIEDADES
+                  almacen_id: 2
+      responses:
+        '200':
+          description: Productos agrupados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductosResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    categoria_consultada: 126
+                    categoria_consultada_nombre: VARIEDADES
+                    total_grupos: 12
+                    items:
+                      - codigo_padre: JARTER00021
+                        tiene_variantes: true
+                        variantes:
+                          - productosid: 1201
+                            productocodigo: JARTER00021-az
+                            descripcion: Cartera Elegante Azul
+                            productos_categoriasid: 126
+                            productos_categorias_nombre: VARIEDADES
+                            productos_subcategoriasid: 332
+                            productos_subcategorias_nombre: VARIOS
+                            existenciastotales: 359
+                            imagenes_data:
+                              - /9j/4AAQSkZJRg...
+        '400':
+          description: Parámetros faltantes o inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                faltaCategoria:
+                  summary: Falta categoría
+                  value:
+                    success: false
+                    message: Debe proporcionar 'categoria_id' o 'categoria_nombre' en el body.
+                    error: PARAMETRO_FALTANTE
+                faltaAlmacen:
+                  summary: Falta almacen_id
+                  value:
+                    success: false
+                    message: El parámetro 'almacen_id' es obligatorio. Debe proporcionar el ID del almacén.
+                    error: PARAMETRO_FALTANTE
+                    parametro_faltante: almacen_id
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Almacén, categoría o productos no encontrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                almacen:
+                  value:
+                    success: false
+                    message: El almacén con ID 999 no existe.
+                    error: ALMACEN_NO_ENCONTRADO
+                    almacen_id: 999
+                categoria:
+                  value:
+                    success: false
+                    message: La categoría "CATEGORIA_INEXISTENTE" no existe. Verifica que el nombre sea correcto.
+                    error: CATEGORIA_NO_ENCONTRADA
+                    categoria_nombre: CATEGORIA_INEXISTENTE
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
+
+  /api/cache/stats:
+    post:
+      tags: [Caché]
+      summary: Estadísticas de caché
+      description: Obtiene estadísticas del caché (keys, hits, misses) para categorías y productos.
+      operationId: postCacheStats
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Estadísticas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheStatsResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    categorias:
+                      keys: 5
+                      hits: 120
+                      misses: 10
+                      ttl: 1800
+                    productos:
+                      keys: 8
+                      hits: 45
+                      misses: 12
+                      ttl: 900
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/cache/clear:
+    post:
+      tags: [Caché]
+      summary: Limpiar caché
+      description: Limpia todo el caché de categorías y productos. Útil después de actualizaciones en Perseo.
+      operationId: postCacheClear
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Caché limpiado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheClearResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    message: Caché limpiado correctamente.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  requestBodies:
+    SoloApiKey:
+      required: true
+      description: Body mínimo con autenticación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiKeyRequest'
+          example:
+            api_key: poner_la_api_key_aqui
+
+  responses:
+    Unauthorized:
+      description: API Key requerida — no se envió `api_key` en el body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: API key requerida. Debe enviar 'api_key' en el body de la petición.
+    Forbidden:
+      description: API Key inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: API key inválida.
+    NotFoundGenerico:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ErrorInterno:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: Error al procesar la solicitud.
+            error: ERROR_INTERNO
+    PerseoNoDisponible:
+      description: No se pudo conectar con Perseo
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: No se pudo conectar con el servidor de Perseo.
+            error: ERROR_TIMEOUT_PERSEO
+
+  schemas:
+    ApiKeyRequest:
+      type: object
+      required: [api_key]
+      properties:
+        api_key:
+          type: string
+          description: API Key de autenticación (mismo valor configurado en el servidor).
+          example: poner_la_api_key_aqui
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: string
+        parametro_faltante:
+          type: string
+        almacen_id:
+          type: integer
+        categoria_nombre:
+          type: string
+        detalles:
+          type: object
+          additionalProperties: true
+
+    CategoriasCompletasResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    CategoriasListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        categorias:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              nombre:
+                type: string
+
+    AlmacenesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        almacenes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              nombre:
+                type: string
+
+    ProductosRequestPorId:
+      type: object
+      title: Body por ID de categoría (3 campos)
+      description: |
+        Forma válida **A**: incluye `categoria_id`. **No** envíes `categoria_nombre` en este caso.
+      required:
+        - api_key
+        - almacen_id
+        - categoria_id
+      properties:
+        api_key:
+          type: string
+          description: API Key de autenticación.
+          example: poner_la_api_key_aqui
+        almacen_id:
+          type: integer
+          description: ID del almacén para existencias (obligatorio).
+          example: 2
+        categoria_id:
+          type: integer
+          description: ID numérico de la categoría (obligatorio en esta variante).
+          example: 126
+      additionalProperties: false
+
+    ProductosRequestPorNombre:
+      type: object
+      title: Body por nombre de categoría (3 campos)
+      description: |
+        Forma válida **B**: incluye `categoria_nombre`. **No** envíes `categoria_id` en este caso.
+      required:
+        - api_key
+        - almacen_id
+        - categoria_nombre
+      properties:
+        api_key:
+          type: string
+          description: API Key de autenticación.
+          example: poner_la_api_key_aqui
+        almacen_id:
+          type: integer
+          description: ID del almacén para existencias (obligatorio).
+          example: 2
+        categoria_nombre:
+          type: string
+          description: Nombre de la categoría, sin distinguir mayúsculas (obligatorio en esta variante).
+          example: VARIEDADES
+      additionalProperties: false
+
+    ProductoVariante:
+      type: object
+      description: Variante de producto con datos de Perseo, imágenes y nombres de taxonomía.
+      properties:
+        productosid:
+          type: integer
+        productocodigo:
+          type: string
+        descripcion:
+          type: string
+        productos_categoriasid:
+          type: integer
+        productos_categorias_nombre:
+          type: string
+          nullable: true
+          description: Nombre de la categoría resuelto desde Perseo.
+        productos_subcategoriasid:
+          type: integer
+        productos_subcategorias_nombre:
+          type: string
+          nullable: true
+          description: Nombre de la subcategoría resuelto desde Perseo.
+        existenciastotales:
+          type: number
+          description: Stock en el almacén indicado en la petición.
+        imagenes_data:
+          type: array
+          items:
+            type: string
+          description: Imágenes en Base64 (WebP comprimido).
+
+    GrupoProducto:
+      type: object
+      properties:
+        codigo_padre:
+          type: string
+          description: Código antes del guion (ej. JARTER00021).
+        tiene_variantes:
+          type: boolean
+        variantes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoVariante'
+
+    ProductosResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        categoria_consultada:
+          type: integer
+        categoria_consultada_nombre:
+          type: string
+          nullable: true
+        total_grupos:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrupoProducto'
+
+    CacheStatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        categorias:
+          type: object
+          properties:
+            keys:
+              type: integer
+            hits:
+              type: integer
+            misses:
+              type: integer
+            ttl:
+              type: integer
+        productos:
+          type: object
+          properties:
+            keys:
+              type: integer
+            hits:
+              type: integer
+            misses:
+              type: integer
+            ttl:
+              type: integer
+
+    CacheClearResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string

@@ -56,10 +56,11 @@ El servidor estará disponible en `http://localhost:3001`
 
 ## 📚 Documentación
 
-La documentación completa está disponible en:
+Documentación interactiva con **[Scalar](https://scalar.com)** (misma guía que antes, ahora con “Try it” en el navegador):
 
 - **Local:** `http://localhost:3001/docs` o `http://localhost:3001/` (redirige automáticamente)
 - **Producción:** `https://alusan.onrender.com/docs` o `https://alusan.onrender.com/` (redirige automáticamente)
+- **Especificación OpenAPI:** `docs/openapi.yaml` (fuente única de la documentación)
 
 ## 📡 Endpoints
 
@@ -103,6 +104,8 @@ O por nombre de categoría:
 - `almacen_id` (requerido): ID del almacén para consultar existencias
 
 *Debe proporcionarse al menos uno: `categoria_id` o `categoria_nombre`
+
+**Campos adicionales en cada variante:** además de `productos_categoriasid` y `productos_subcategoriasid`, la respuesta incluye `productos_categorias_nombre` y `productos_subcategorias_nombre` (resueltos desde Perseo con caché de 30 min). En la raíz del JSON también viene `categoria_consultada_nombre`.
 
 ### POST `/api/categorias`
 

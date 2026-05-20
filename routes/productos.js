@@ -1,5 +1,11 @@
 import { obtenerProductosPorCategoria, hidratarProductosConImagenes } from '../services/perseoService.js';
-import { agruparProductos, buscarCategoriaPorNombre } from '../utils/productUtils.js';
+import {
+    agruparProductos,
+    buscarCategoriaPorNombre,
+    enriquecerProductosConNombresTaxonomia,
+    obtenerMapaCategoriasPorId,
+    obtenerMapaSubcategoriasPorId
+} from '../utils/productUtils.js';
 import { PERSEO_API_KEY, API_BASE_URL, CACHE_TTL_PRODUCTOS } from '../config/index.js';
 import { authenticateApiKey } from '../middleware/auth.js';
 import { validarAlmacen } from '../services/almacenService.js';
@@ -177,22 +183,34 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             // 3. Hidratar productos con imágenes y existencias
             const productosHidratados = await hidratarProductosConImagenes(productosRaw, almacenIdNum);
 
+            // 3b. Resolver nombres de categoría y subcategoría (consultas en caché)
+            console.log(`📂 Resolviendo nombres de categorías y subcategorías...`);
+            const [mapaCategorias, mapaSubcategorias] = await Promise.all([
+                obtenerMapaCategoriasPorId(cacheCategorias),
+                obtenerMapaSubcategoriasPorId(cacheCategorias)
+            ]);
+            const productosConNombres = enriquecerProductosConNombresTaxonomia(
+                productosHidratados,
+                mapaCategorias,
+                mapaSubcategorias
+            );
+
             // 4. Agrupación lógica en memoria
-            const resultadoFinal = agruparProductos(productosHidratados);
+            const resultadoFinal = agruparProductos(productosConNombres);
 
             // Resumen completo
-            const productosFinalesConId = productosHidratados.filter(p => 
+            const productosFinalesConId = productosConNombres.filter(p => 
                 p.productosid || p.productoid || p.id
             ).length;
-            const productosFinalesSinId = productosHidratados.length - productosFinalesConId;
+            const productosFinalesSinId = productosConNombres.length - productosFinalesConId;
             
             const gruposConVariantes = resultadoFinal.filter(g => g.tiene_variantes).length;
             const gruposSinVariantes = resultadoFinal.length - gruposConVariantes;
             const totalVariantes = resultadoFinal.reduce((sum, grupo) => sum + grupo.variantes.length, 0);
             
-            const totalImagenesComprimidas = productosHidratados.reduce((sum, p) => sum + (p.imagenes_data?.length || 0), 0);
-            const productosConImagenesFinal = productosHidratados.filter(p => p.imagenes_data && p.imagenes_data.length > 0).length;
-            const productosSinImagenesFinal = productosHidratados.length - productosConImagenesFinal;
+            const totalImagenesComprimidas = productosConNombres.reduce((sum, p) => sum + (p.imagenes_data?.length || 0), 0);
+            const productosConImagenesFinal = productosConNombres.filter(p => p.imagenes_data && p.imagenes_data.length > 0).length;
+            const productosSinImagenesFinal = productosConNombres.length - productosConImagenesFinal;
             const tiempoTotal = ((Date.now() - inicioTiempo) / 1000).toFixed(2);
             
             console.log(`\n⚡ OPTIMIZACIÓN COMPLETA:`);
@@ -213,6 +231,7 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             const resultado = {
                 success: true,
                 categoria_consultada: categoriaIdNum,
+                categoria_consultada_nombre: mapaCategorias.get(categoriaIdNum) ?? null,
                 total_grupos: resultadoFinal.length,
                 items: resultadoFinal
             };

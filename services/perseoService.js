@@ -26,6 +26,18 @@ export async function obtenerCategorias() {
 }
 
 /**
+ * Obtiene todas las subcategorías de productos de Perseo
+ * @returns {Promise<Object>} - Respuesta con subcategorias
+ */
+export async function obtenerSubcategorias() {
+    const response = await axios.post(`${API_BASE_URL}/productos_subcategorias_consulta`, {
+        "api_key": PERSEO_API_KEY
+    });
+
+    return response.data;
+}
+
+/**
  * Obtiene productos de una categoría específica
  * @param {number} categoriaId - ID de la categoría
  * @returns {Promise<Object>} - Respuesta con productos
