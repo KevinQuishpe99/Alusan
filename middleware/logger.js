@@ -1,12 +1,6 @@
 /**
- * Middleware de logging para todas las peticiones HTTP entrantes
+ * Middleware HTTP: sin logs por defecto (evita I/O en cada petición).
  */
-export function requestLogger(req, res, next) {
-    const timestamp = new Date().toISOString();
-    console.log(`\n🌐 PETICIÓN HTTP ENTRANTE [${timestamp}]`);
-    console.log(`   📍 Método: ${req.method}`);
-    console.log(`   🔗 URL: ${req.originalUrl || req.url}`);
-    console.log(`   🌍 IP: ${req.ip || req.connection.remoteAddress}`);
+export function requestLogger(_req, _res, next) {
     next();
 }
-

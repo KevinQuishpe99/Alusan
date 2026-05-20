@@ -33,8 +33,7 @@ export async function obtenerAlmacenes() {
         }
 
         return [];
-    } catch (error) {
-        console.error("Error al obtener almacenes:", error.message);
+    } catch {
         return [];
     }
 }
@@ -53,7 +52,6 @@ export async function validarAlmacen(almacenId) {
         const almacenes = await obtenerAlmacenes();
         
         if (almacenes.length === 0) {
-            console.warn("No se pudieron obtener almacenes de Perseo");
             return { existe: false };
         }
 
@@ -69,9 +67,7 @@ export async function validarAlmacen(almacenId) {
         }
 
         return { existe: false };
-    } catch (error) {
-        console.error(`Error al validar almacén ${almacenId}:`, error.message);
-        // Si hay error, asumimos que no existe para ser conservadores
+    } catch {
         return { existe: false };
     }
 }

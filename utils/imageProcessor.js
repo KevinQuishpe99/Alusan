@@ -60,11 +60,6 @@ export async function procesarImagen(imagenBase64) {
  * @returns {Promise<Array>} - Productos con imágenes comprimidas
  */
 export async function procesarTodasLasImagenes(productosConImagenes) {
-    const inicioCompresion = Date.now();
-    const totalImagenes = productosConImagenes.reduce((sum, p) => sum + (p.imagenesBase64?.length || 0), 0);
-    
-    console.log(`🗜️  Iniciando compresión de ${totalImagenes} imágenes en pool global (máx ${MAX_CONCURRENT_COMPRESSION} simultáneas)...`);
-    
     // ESTRATEGIA OPTIMIZADA: Crear un array plano de todas las imágenes con referencia al producto
     const todasLasImagenes = [];
     productosConImagenes.forEach((item, productoIndex) => {
@@ -117,11 +112,6 @@ export async function procesarTodasLasImagenes(productosConImagenes) {
         
         return { ...item.producto, imagenes_data: imagenesDelProducto };
     });
-    
-    const tiempoCompresion = ((Date.now() - inicioCompresion) / 1000).toFixed(2);
-    const imagenesProcesadas = imagenesComprimidas.length;
-    console.log(`🗜️  Compresión completada en ${tiempoCompresion}s`);
-    console.log(`   📊 ${imagenesProcesadas} imágenes procesadas en pool global (${(imagenesProcesadas / parseFloat(tiempoCompresion)).toFixed(1)} img/s)`);
     
     return productosComprimidos;
 }

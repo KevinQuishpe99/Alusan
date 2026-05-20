@@ -156,8 +156,7 @@ export async function buscarCategoriaPorNombre(nombreCategoria, cacheCategorias,
             } else {
                 return null;
             }
-        } catch (error) {
-            console.error("Error al buscar categoría:", error.message);
+        } catch {
             return null;
         }
     }
