@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import NodeCache from 'node-cache';
-import { PORT } from './config/index.js';
+import { PORT, CACHE_TTL_CATEGORIAS, CACHE_TTL_PRODUCTOS } from './config/index.js';
 import { requestLogger } from './middleware/logger.js';
 import { setupCategoriasRoutes } from './routes/categorias.js';
+import { setupSubcategoriasRoutes } from './routes/subcategorias.js';
 import { setupProductosRoutes } from './routes/productos.js';
 import { setupAlmacenesRoutes } from './routes/almacenes.js';
 import { setupCacheRoutes } from './routes/cache.js';
@@ -29,6 +30,7 @@ const cacheProductos = new NodeCache({ stdTTL: CACHE_TTL_PRODUCTOS });
 
 // Configurar rutas
 setupCategoriasRoutes(app, cacheCategorias);
+setupSubcategoriasRoutes(app, cacheCategorias);
 setupAlmacenesRoutes(app);
 setupProductosRoutes(app, cacheProductos, cacheCategorias);
 setupCacheRoutes(app, cacheCategorias, cacheProductos);

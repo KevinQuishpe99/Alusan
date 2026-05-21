@@ -64,6 +64,8 @@ servers:
 tags:
   - name: Categorías
     description: Consulta de categorías de productos en Perseo.
+  - name: Subcategorías
+    description: Consulta de subcategorías de productos en Perseo (`productos_subcategorias_consulta`).
   - name: Almacenes
     description: Listado de almacenes para validar `almacen_id` antes de consultar productos.
   - name: Productos
@@ -137,6 +139,74 @@ paths:
                         nombre: VARIEDADES
                       - id: 127
                         nombre: ELECTRÓNICOS
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+
+  /api/subcategorias:
+    post:
+      tags: [Subcategorías]
+      summary: Subcategorías completas
+      description: Obtiene todas las subcategorías con información completa desde Perseo.
+      operationId: postSubcategorias
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Lista completa de subcategorías
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubcategoriasCompletasResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    total: 180
+                    data:
+                      - productos_subcategoriasid: 332
+                        descripcion: VARIOS
+                      - productos_subcategoriasid: 1
+                        descripcion: General
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFoundGenerico'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
+
+  /api/subcategorias/list:
+    post:
+      tags: [Subcategorías]
+      summary: Subcategorías simplificadas
+      description: Lista simplificada (solo ID y nombre). Ideal para dropdowns o resolver `productos_subcategoriasid`.
+      operationId: postSubcategoriasList
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Lista simplificada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubcategoriasListResponse'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    total: 180
+                    subcategorias:
+                      - id: 332
+                        nombre: VARIOS
+                      - id: 1
+                        nombre: General
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -532,6 +602,42 @@ components:
                 type: integer
               nombre:
                 type: string
+
+    SubcategoriasCompletasResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              productos_subcategoriasid:
+                type: integer
+              descripcion:
+                type: string
+
+    SubcategoriasListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        total:
+          type: integer
+        subcategorias:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: Alias de productos_subcategoriasid
+              nombre:
+                type: string
+                description: Alias de descripcion
 
     AlmacenesResponse:
       type: object

@@ -129,6 +129,40 @@ Obtiene una lista simplificada de categorías (solo ID y nombre).
 }
 ```
 
+### POST `/api/subcategorias`
+
+Obtiene todas las subcategorías con información completa desde Perseo.
+
+**Body requerido:**
+```json
+{
+  "api_key": "tu_api_key_aqui"
+}
+```
+
+### POST `/api/subcategorias/list`
+
+Lista simplificada de subcategorías (solo `id` y `nombre`). Misma fuente que `productos_subcategorias_consulta`.
+
+**Body requerido:**
+```json
+{
+  "api_key": "tu_api_key_aqui"
+}
+```
+
+**Respuesta ejemplo:**
+```json
+{
+  "success": true,
+  "total": 180,
+  "subcategorias": [
+    { "id": 332, "nombre": "VARIOS" },
+    { "id": 1, "nombre": "General" }
+  ]
+}
+```
+
 ### POST `/api/almacenes`
 
 Lista todos los almacenes disponibles en Perseo.
