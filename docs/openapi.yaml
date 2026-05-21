@@ -20,9 +20,22 @@ info:
 
     **Todos los endpoints** requieren `api_key` en el **body** de la petición (no en headers).
 
+    ## Endpoints principales
+
+    | Método | Ruta | Descripción |
+    |--------|------|-------------|
+    | POST | `/api/categorias` | Categorías completas |
+    | POST | `/api/categorias/list` | Categorías (id + nombre) |
+    | POST | `/api/subcategorias` | Subcategorías completas |
+    | POST | `/api/subcategorias/list` | Subcategorías (id + nombre) |
+    | POST | `/api/almacenes` | Listado de almacenes |
+    | POST | `/api/productos` | Productos agrupados con imágenes |
+    | POST | `/api/cache/stats` | Estadísticas de caché |
+    | POST | `/api/cache/clear` | Limpiar caché |
+
     ## Caché
 
-    - Categorías y mapas de nombres: **30 minutos**
+    - Categorías, subcategorías y mapas de nombres: **30 minutos**
     - Productos por categoría: **15 minutos**
     - Usa `POST /api/cache/clear` tras cambios en Perseo
 
@@ -65,7 +78,10 @@ tags:
   - name: Categorías
     description: Consulta de categorías de productos en Perseo.
   - name: Subcategorías
-    description: Consulta de subcategorías de productos en Perseo (`productos_subcategorias_consulta`).
+    description: |
+      Listado de subcategorías desde Perseo (`productos_subcategorias_consulta`).
+      Usa `/api/subcategorias/list` para obtener `id` y `nombre` (ej. `332` → `VARIOS`).
+      Los productos en `/api/productos` ya incluyen `productos_subcategorias_nombre` en cada variante.
   - name: Almacenes
     description: Listado de almacenes para validar `almacen_id` antes de consultar productos.
   - name: Productos
@@ -146,59 +162,50 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorInterno'
 
-  /api/subcategorias:
-    post:
-      tags: [Subcategorías]
-      summary: Subcategorías completas
-      description: Obtiene todas las subcategorías con información completa desde Perseo.
-      operationId: postSubcategorias
-      requestBody:
-        $ref: '#/components/requestBodies/SoloApiKey'
-      responses:
-        '200':
-          description: Lista completa de subcategorías
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubcategoriasCompletasResponse'
-              examples:
-                ok:
-                  value:
-                    success: true
-                    total: 180
-                    data:
-                      - productos_subcategoriasid: 332
-                        descripcion: VARIOS
-                      - productos_subcategoriasid: 1
-                        descripcion: General
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFoundGenerico'
-        '500':
-          $ref: '#/components/responses/ErrorInterno'
-        '503':
-          $ref: '#/components/responses/PerseoNoDisponible'
-
   /api/subcategorias/list:
     post:
       tags: [Subcategorías]
       summary: Subcategorías simplificadas
-      description: Lista simplificada (solo ID y nombre). Ideal para dropdowns o resolver `productos_subcategoriasid`.
+      description: |
+        Obtiene una lista simplificada de subcategorías (**solo ID y nombre**). Ideal para dropdowns o para traducir `productos_subcategoriasid` a texto.
+
+        ### Cómo enviar (Request Body)
+
+        ```json
+        {
+          "api_key": "poner_la_api_key_aqui"
+        }
+        ```
+
+        ### Cómo retorna (200 OK)
+
+        ```json
+        {
+          "success": true,
+          "total": 180,
+          "subcategorias": [
+            { "id": 332, "nombre": "VARIOS" },
+            { "id": 1, "nombre": "General" }
+          ]
+        }
+        ```
+
+        - `id` corresponde a `productos_subcategoriasid` en Perseo
+        - `nombre` corresponde a `descripcion` en Perseo
+        - Respuesta en caché **30 minutos**
       operationId: postSubcategoriasList
       requestBody:
         $ref: '#/components/requestBodies/SoloApiKey'
       responses:
         '200':
-          description: Lista simplificada
+          description: Lista simplificada de subcategorías
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubcategoriasListResponse'
               examples:
                 ok:
+                  summary: Respuesta exitosa
                   value:
                     success: true
                     total: 180
@@ -211,8 +218,75 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Sin subcategorías
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: No se encontraron subcategorías.
         '500':
           $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
+
+  /api/subcategorias:
+    post:
+      tags: [Subcategorías]
+      summary: Subcategorías completas
+      description: |
+        Obtiene **todas** las subcategorías con el objeto completo que devuelve Perseo.
+
+        ### Cómo enviar (Request Body)
+
+        ```json
+        {
+          "api_key": "poner_la_api_key_aqui"
+        }
+        ```
+
+        ### Cómo retorna (200 OK)
+
+        Incluye `productos_subcategoriasid`, `descripcion`, fechas e imagen (si aplica).
+
+        ### Fuente interna
+
+        Consulta a Perseo: `POST productos_subcategorias_consulta` con solo `api_key`.
+      operationId: postSubcategorias
+      requestBody:
+        $ref: '#/components/requestBodies/SoloApiKey'
+      responses:
+        '200':
+          description: Lista completa de subcategorías
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubcategoriasCompletasResponse'
+              examples:
+                ok:
+                  summary: Respuesta exitosa
+                  value:
+                    success: true
+                    total: 180
+                    data:
+                      - productos_subcategoriasid: 332
+                        descripcion: VARIOS
+                        imagen: ''
+                      - productos_subcategoriasid: 1
+                        descripcion: General
+                        imagen: ''
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFoundGenerico'
+        '500':
+          $ref: '#/components/responses/ErrorInterno'
+        '503':
+          $ref: '#/components/responses/PerseoNoDisponible'
 
   /api/almacenes:
     post:

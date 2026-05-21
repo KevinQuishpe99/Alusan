@@ -64,6 +64,19 @@ Documentación interactiva con **[Scalar](https://scalar.com)** (misma guía que
 
 ## 📡 Endpoints
 
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/categorias` | Categorías completas |
+| POST | `/api/categorias/list` | Categorías (id + nombre) |
+| POST | `/api/subcategorias` | Subcategorías completas |
+| POST | `/api/subcategorias/list` | Subcategorías (id + nombre) |
+| POST | `/api/almacenes` | Almacenes disponibles |
+| POST | `/api/productos` | Productos por categoría (imágenes + stock) |
+| POST | `/api/cache/stats` | Estadísticas de caché |
+| POST | `/api/cache/clear` | Limpiar caché |
+
+Documentación interactiva (Scalar): `/docs`
+
 ### 🔐 Autenticación
 
 **TODOS los endpoints requieren autenticación mediante API key en el body de la petición.**
@@ -129,20 +142,9 @@ Obtiene una lista simplificada de categorías (solo ID y nombre).
 }
 ```
 
-### POST `/api/subcategorias`
-
-Obtiene todas las subcategorías con información completa desde Perseo.
-
-**Body requerido:**
-```json
-{
-  "api_key": "tu_api_key_aqui"
-}
-```
-
 ### POST `/api/subcategorias/list`
 
-Lista simplificada de subcategorías (solo `id` y `nombre`). Misma fuente que `productos_subcategorias_consulta`.
+Lista simplificada de subcategorías (solo `id` y `nombre`). Recomendado para UI y filtros. Caché 30 min.
 
 **Body requerido:**
 ```json
@@ -151,7 +153,7 @@ Lista simplificada de subcategorías (solo `id` y `nombre`). Misma fuente que `p
 }
 ```
 
-**Respuesta ejemplo:**
+**Respuesta (200 OK):**
 ```json
 {
   "success": true,
@@ -159,6 +161,35 @@ Lista simplificada de subcategorías (solo `id` y `nombre`). Misma fuente que `p
   "subcategorias": [
     { "id": 332, "nombre": "VARIOS" },
     { "id": 1, "nombre": "General" }
+  ]
+}
+```
+
+- `id` = `productos_subcategoriasid` en Perseo  
+- `nombre` = `descripcion` en Perseo  
+
+### POST `/api/subcategorias`
+
+Obtiene todas las subcategorías con información completa desde Perseo (`productos_subcategorias_consulta`).
+
+**Body requerido:**
+```json
+{
+  "api_key": "tu_api_key_aqui"
+}
+```
+
+**Respuesta (200 OK):**
+```json
+{
+  "success": true,
+  "total": 180,
+  "data": [
+    {
+      "productos_subcategoriasid": 332,
+      "descripcion": "VARIOS",
+      "imagen": ""
+    }
   ]
 }
 ```
