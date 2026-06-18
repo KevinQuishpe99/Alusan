@@ -1,25 +1,41 @@
 import { obtenerProductosPorCategoria, hidratarProductosConImagenes } from '../services/perseoService.js';
 import {
     agruparProductos,
+    aplicarOpcionesVariante,
     buscarCategoriaPorNombre,
+    construirCacheKeyProductos,
     enriquecerProductosConNombresTaxonomia,
     obtenerMapaCategoriasPorId,
-    obtenerMapaSubcategoriasPorId
+    obtenerMapaSubcategoriasPorId,
+    parseBodyBoolean
 } from '../utils/productUtils.js';
-import { PERSEO_API_KEY, API_BASE_URL } from '../config/index.js';
+import {
+    PERSEO_API_KEY,
+    API_BASE_URL,
+    CACHE_TTL_PRODUCTOS,
+    CACHE_CONTROL_PRODUCTOS,
+    DEFAULT_INCLUIR_IMAGENES,
+    DEFAULT_MAX_IMAGENES,
+    DEFAULT_TARIFAS_RESUMIDAS
+} from '../config/index.js';
 import { authenticateApiKey } from '../middleware/auth.js';
 import { validarAlmacen } from '../services/almacenService.js';
 import { logError } from '../utils/logger.js';
 
 /**
  * Endpoint: POST /api/productos
- * Obtiene productos agrupados por código padre con imágenes y existencias
  */
 export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
     app.post('/api/productos', authenticateApiKey, async (req, res) => {
         const categoriaId = req.body?.categoria_id;
         const categoriaNombre = req.body?.categoria_nombre;
         const almacenId = req.body?.almacen_id;
+
+        const opcionesRespuesta = {
+            incluirImagenes: parseBodyBoolean(req.body?.incluir_imagenes, DEFAULT_INCLUIR_IMAGENES),
+            maxImagenes: Math.max(0, parseInt(req.body?.max_imagenes, 10) || DEFAULT_MAX_IMAGENES),
+            tarifasResumidas: parseBodyBoolean(req.body?.tarifas_resumidas, DEFAULT_TARIFAS_RESUMIDAS)
+        };
 
         if (!categoriaId && !categoriaNombre) {
             return res.status(400).json({
@@ -84,9 +100,11 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             }
         }
 
-        const cacheKey = `productos_categoria_${categoriaIdNum}`;
+        const cacheKey = construirCacheKeyProductos(categoriaIdNum, almacenIdNum, opcionesRespuesta);
         const cachedData = cacheProductos.get(cacheKey);
         if (cachedData) {
+            res.set('Cache-Control', `public, max-age=${CACHE_CONTROL_PRODUCTOS}`);
+            res.set('X-Cache', 'HIT');
             return res.json(cachedData);
         }
 
@@ -112,17 +130,25 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 });
             }
 
-            const productosHidratados = await hidratarProductosConImagenes(productosRaw, almacenIdNum);
+            const productosHidratados = await hidratarProductosConImagenes(
+                productosRaw,
+                almacenIdNum,
+                {
+                    incluirImagenes: opcionesRespuesta.incluirImagenes,
+                    maxImagenes: opcionesRespuesta.maxImagenes
+                }
+            );
 
             const [mapaCategorias, mapaSubcategorias] = await Promise.all([
                 obtenerMapaCategoriasPorId(cacheCategorias),
                 obtenerMapaSubcategoriasPorId(cacheCategorias)
             ]);
+
             const productosConNombres = enriquecerProductosConNombresTaxonomia(
                 productosHidratados,
                 mapaCategorias,
                 mapaSubcategorias
-            );
+            ).map((prod) => aplicarOpcionesVariante(prod, opcionesRespuesta));
 
             const resultadoFinal = agruparProductos(productosConNombres);
 
@@ -131,10 +157,18 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 categoria_consultada: categoriaIdNum,
                 categoria_consultada_nombre: mapaCategorias.get(categoriaIdNum) ?? null,
                 total_grupos: resultadoFinal.length,
+                opciones_aplicadas: {
+                    incluir_imagenes: opcionesRespuesta.incluirImagenes,
+                    max_imagenes: opcionesRespuesta.maxImagenes,
+                    tarifas_resumidas: opcionesRespuesta.tarifasResumidas,
+                    cache_ttl_segundos: CACHE_TTL_PRODUCTOS
+                },
                 items: resultadoFinal
             };
 
             cacheProductos.set(cacheKey, resultado);
+            res.set('Cache-Control', `public, max-age=${CACHE_CONTROL_PRODUCTOS}`);
+            res.set('X-Cache', 'MISS');
             res.json(resultado);
 
         } catch (error) {

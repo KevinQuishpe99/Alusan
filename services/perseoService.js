@@ -189,12 +189,16 @@ async function obtenerExistenciasProducto(productoId, almacenId = 2) {
 }
 
 /**
- * Hidrata productos con sus imágenes y existencias en paralelo
- * @param {Array} productosRaw - Array de productos sin imágenes ni existencias
- * @param {number} almacenId - ID del almacén para consultar existencias (por defecto 2)
- * @returns {Promise<Array>} - Productos con imágenes comprimidas y existencias
+ * Hidrata productos con existencias e imágenes opcionales
+ * @param {Array} productosRaw
+ * @param {number} almacenId
+ * @param {{ incluirImagenes?: boolean, maxImagenes?: number }} opciones
+ * @returns {Promise<Array>}
  */
-export async function hidratarProductosConImagenes(productosRaw, almacenId = 2) {
+export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, opciones = {}) {
+    const incluirImagenes = opciones.incluirImagenes !== false;
+    const maxImagenes = opciones.maxImagenes ?? 1;
+
     const productosConImagenRaw = await Promise.all(
         productosRaw.map((prod) =>
             limitadorImagenes(async () => {
@@ -210,14 +214,27 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2) 
                 }
 
                 try {
+                    if (!incluirImagenes) {
+                        const existencias = await obtenerExistenciasProducto(productoId, almacenId);
+                        return {
+                            producto: prod,
+                            imagenesBase64: [],
+                            existenciastotales: existencias,
+                            productoId
+                        };
+                    }
+
                     const [imagenesBase64, existencias] = await Promise.all([
                         obtenerImagenesProducto(productoId),
                         obtenerExistenciasProducto(productoId, almacenId)
                     ]);
 
+                    const imagenesLimitadas =
+                        maxImagenes > 0 ? imagenesBase64.slice(0, maxImagenes) : [];
+
                     return {
                         producto: prod,
-                        imagenesBase64,
+                        imagenesBase64: imagenesLimitadas,
                         existenciastotales: existencias,
                         productoId
                     };
@@ -233,18 +250,22 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2) 
         )
     );
 
-    // FASE 2: Comprimir todas las imágenes
+    if (!incluirImagenes) {
+        return productosConImagenRaw.map((item) => ({
+            ...item.producto,
+            imagenes_data: [],
+            existenciastotales: item.existenciastotales || 0
+        }));
+    }
+
     const productosComprimidos = await procesarTodasLasImagenes(productosConImagenRaw);
-    
-    // Agregar existenciastotales a cada producto después de la compresión
-    const productosFinales = productosComprimidos.map((producto, index) => {
+
+    return productosComprimidos.map((producto, index) => {
         const productoOriginal = productosConImagenRaw[index];
         return {
             ...producto,
             existenciastotales: productoOriginal?.existenciastotales || 0
         };
     });
-    
-    return productosFinales;
 }
 

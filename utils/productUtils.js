@@ -80,6 +80,86 @@ export function enriquecerProductosConNombresTaxonomia(productos, mapaCategorias
 }
 
 /**
+ * @param {unknown} value
+ * @param {boolean} defaultValue
+ * @returns {boolean}
+ */
+export function parseBodyBoolean(value, defaultValue) {
+    if (value === undefined || value === null) {
+        return defaultValue;
+    }
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (value === 1 || value === '1' || value === 'true') {
+        return true;
+    }
+    if (value === 0 || value === '0' || value === 'false') {
+        return false;
+    }
+    return defaultValue;
+}
+
+/**
+ * Clave de caché única por categoría, almacén y opciones de respuesta
+ * @param {number} categoriaId
+ * @param {number} almacenId
+ * @param {{ incluirImagenes: boolean, maxImagenes: number, tarifasResumidas: boolean }} opciones
+ * @returns {string}
+ */
+export function construirCacheKeyProductos(categoriaId, almacenId, opciones) {
+    const img = opciones.incluirImagenes ? 1 : 0;
+    const tar = opciones.tarifasResumidas ? 1 : 0;
+    return `prod_c${categoriaId}_a${almacenId}_i${img}_m${opciones.maxImagenes}_t${tar}`;
+}
+
+/**
+ * Deja solo tarifa PUBLICO (o la primera) para reducir peso del JSON
+ * @param {Record<string, unknown>} producto
+ * @returns {Record<string, unknown>}
+ */
+export function resumirTarifasProducto(producto) {
+    const tarifas = producto.tarifas;
+    if (!tarifas || typeof tarifas !== 'object' || !Array.isArray(tarifas.unidadinterna)) {
+        return producto;
+    }
+
+    const lista = tarifas.unidadinterna;
+    const publica = lista.find(
+        (t) => t?.tarifadescripcion === 'PUBLICO' || t?.tarifasid === 1
+    ) ?? lista[0];
+
+    return {
+        ...producto,
+        tarifas: {
+            unidadinterna: publica ? [publica] : []
+        }
+    };
+}
+
+/**
+ * Limita imágenes y tarifas según opciones de respuesta
+ * @param {Record<string, unknown>} producto
+ * @param {{ incluirImagenes: boolean, maxImagenes: number, tarifasResumidas: boolean }} opciones
+ * @returns {Record<string, unknown>}
+ */
+export function aplicarOpcionesVariante(producto, opciones) {
+    let resultado = { ...producto };
+
+    if (opciones.tarifasResumidas) {
+        resultado = resumirTarifasProducto(resultado);
+    }
+
+    if (!opciones.incluirImagenes) {
+        resultado.imagenes_data = [];
+    } else if (Array.isArray(resultado.imagenes_data) && opciones.maxImagenes > 0) {
+        resultado.imagenes_data = resultado.imagenes_data.slice(0, opciones.maxImagenes);
+    }
+
+    return resultado;
+}
+
+/**
  * Función lógica para agrupar por código padre (OPTIMIZADA PARA VELOCIDAD)
  * Usa técnicas de optimización: pre-allocación, indexOf más rápido que split
  * @param {Array} lista - Lista de productos con imágenes

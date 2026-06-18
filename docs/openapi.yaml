@@ -35,8 +35,10 @@ info:
 
     ## Caché
 
-    - Categorías, subcategorías y mapas de nombres: **30 minutos**
-    - Productos por categoría: **15 minutos**
+    - Categorías y subcategorías: **6 horas**
+    - Productos: **4 horas** (por categoría + almacén + opciones)
+    - Header `Cache-Control` en respuestas de productos (la app puede cachear localmente)
+    - Header `X-Cache: HIT|MISS` indica si salió del caché del servidor
     - Usa `POST /api/cache/clear` tras cambios en Perseo
 
     ## Formato de error
@@ -393,6 +395,22 @@ paths:
                 - $ref: '#/components/schemas/ProductosRequestPorNombre'
               description: Elige una de las dos formas válidas (por ID o por nombre). No mezcles ambos campos de categoría.
             examples:
+              catalogoOptimizado:
+                summary: '✅ Catálogo ligero (menos banda Render)'
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_id: 126
+                  almacen_id: 2
+                  max_imagenes: 1
+                  tarifas_resumidas: true
+              sinImagenes:
+                summary: '✅ Solo datos (sin imágenes)'
+                value:
+                  api_key: poner_la_api_key_aqui
+                  categoria_id: 126
+                  almacen_id: 2
+                  incluir_imagenes: false
+                  tarifas_resumidas: true
               validoPorId:
                 summary: '✅ Válido — solo categoria_id (3 campos)'
                 description: No incluye categoria_nombre.
@@ -752,7 +770,18 @@ components:
           type: integer
           description: ID numérico de la categoría (obligatorio en esta variante).
           example: 126
-      additionalProperties: false
+        incluir_imagenes:
+          type: boolean
+          description: 'Default: true. false = no descarga imágenes (ahorra mucha banda).'
+          example: true
+        max_imagenes:
+          type: integer
+          description: 'Default: 1. Máximo de imágenes por variante.'
+          example: 1
+        tarifas_resumidas:
+          type: boolean
+          description: 'Default: false. true = solo tarifa PUBLICO (JSON más pequeño).'
+          example: true
 
     ProductosRequestPorNombre:
       type: object
@@ -776,7 +805,15 @@ components:
           type: string
           description: Nombre de la categoría, sin distinguir mayúsculas (obligatorio en esta variante).
           example: VARIEDADES
-      additionalProperties: false
+        incluir_imagenes:
+          type: boolean
+          example: true
+        max_imagenes:
+          type: integer
+          example: 1
+        tarifas_resumidas:
+          type: boolean
+          example: true
 
     ProductoVariante:
       type: object

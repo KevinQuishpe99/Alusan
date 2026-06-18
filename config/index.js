@@ -23,5 +23,12 @@ export const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT,
 
 export const ALMACEN_ID = parseInt(process.env.ALMACEN_ID, 10) || 2;
 
-export const CACHE_TTL_CATEGORIAS = 30 * 60;
-export const CACHE_TTL_PRODUCTOS = 15 * 60;
+// Caché en memoria (segundos) — más TTL = menos banda y CPU en Render
+export const CACHE_TTL_CATEGORIAS = parseInt(process.env.CACHE_TTL_CATEGORIAS, 10) || 6 * 60 * 60;
+export const CACHE_TTL_PRODUCTOS = parseInt(process.env.CACHE_TTL_PRODUCTOS, 10) || 4 * 60 * 60;
+
+// Opciones por defecto en POST /api/productos (sobreescribibles en el body)
+export const DEFAULT_INCLUIR_IMAGENES = process.env.DEFAULT_INCLUIR_IMAGENES !== 'false';
+export const DEFAULT_MAX_IMAGENES = parseInt(process.env.DEFAULT_MAX_IMAGENES, 10) || 1;
+export const DEFAULT_TARIFAS_RESUMIDAS = process.env.DEFAULT_TARIFAS_RESUMIDAS === 'true';
+export const CACHE_CONTROL_PRODUCTOS = parseInt(process.env.CACHE_CONTROL_PRODUCTOS, 10) || CACHE_TTL_PRODUCTOS;

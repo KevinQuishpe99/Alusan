@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import NodeCache from 'node-cache';
 import { PORT, CACHE_TTL_CATEGORIAS, CACHE_TTL_PRODUCTOS } from './config/index.js';
 import { requestLogger } from './middleware/logger.js';
@@ -13,6 +14,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 app.use(requestLogger);
 
