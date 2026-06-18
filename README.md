@@ -23,25 +23,27 @@ Servidor API para procesamiento optimizado de productos de Perseo con agrupació
 npm install
 ```
 
-3. Configura las variables de entorno creando un archivo `.env` en la raíz del proyecto:
+3. Configura las variables de entorno. Plantilla completa en [`.env.example`](.env.example) (copiar a `.env` en local o pegar en **Render → Environment**).
 
 ```env
-PORT=3001
-PERSEO_API_KEY=tu_api_key_aqui
+NODE_ENV=production
+PERSEO_API_KEY=tu_api_key
+API_KEY=tu_api_key
 API_BASE_URL=https://accesoalnusan.app/api
-API_KEY=tu_api_key_aqui
-IMAGE_REQUEST_TIMEOUT=10000
+ALMACEN_ID=2
+CACHE_TTL_PRODUCTOS=14400
+DEFAULT_MAX_IMAGENES=1
+DEFAULT_TARIFAS_RESUMIDAS=true
+MAX_CONCURRENT_REQUESTS=12
+HIDRATACION_BATCH_SIZE=8
+PRODUCTOS_CONSULTA_TIMEOUT=60000
 ```
 
-**Variables de entorno:**
-- `PORT` - Puerto del servidor (default: 3001)
-- `PERSEO_API_KEY` - API Key de Perseo (para consultas internas a Perseo)
-- `API_BASE_URL` - URL base de la API de Perseo (default: https://accesoalnusan.app/api)
-- `API_KEY` - API Key para autenticación de los endpoints (default: usa el mismo valor que PERSEO_API_KEY)
-- `IMAGE_REQUEST_TIMEOUT` - Timeout para peticiones de imágenes en ms (default: 10000)
-- `MAX_IMAGE_SIZE` - Lado máximo en px (default: 120)
-- `IMAGE_QUALITY` - Calidad WebP 1-100 (default: 38)
-- `MAX_OUTPUT_BYTES` - Si la imagen supera este tamaño, segundo pase más agresivo (default: 18000)
+**Variables principales:**
+- `PERSEO_API_KEY` / `API_KEY` - Credencial Perseo y auth de endpoints
+- `CACHE_TTL_PRODUCTOS` - Caché catálogo en segundos (14400 = 4 h). Stock siempre en tiempo real
+- `DEFAULT_TARIFAS_RESUMIDAS` - `true` reduce banda (solo tarifa PUBLICO)
+- `MAX_CONCURRENT_*` / `HIDRATACION_BATCH_SIZE` - Ajustar para Render 512MB
 
 ## 🏃 Ejecución
 
