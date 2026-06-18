@@ -7,7 +7,7 @@ Servidor API para procesamiento optimizado de productos de Perseo con agrupació
 - **Procesamiento Paralelo**: Descarga imágenes y existencias simultáneamente
 - **Agrupación Inteligente**: Agrupa productos por código padre (separado por guion)
 - **Consulta de Existencias**: Obtiene existencias del almacén especificado
-- **Alta Performance**: Optimizado para velocidad máxima
+- **Imágenes ultra comprimidas**: WebP miniatura (~120px, calidad baja) para reducir banda en Render
 
 ## 📋 Requisitos Previos
 
@@ -39,6 +39,9 @@ IMAGE_REQUEST_TIMEOUT=10000
 - `API_BASE_URL` - URL base de la API de Perseo (default: https://accesoalnusan.app/api)
 - `API_KEY` - API Key para autenticación de los endpoints (default: usa el mismo valor que PERSEO_API_KEY)
 - `IMAGE_REQUEST_TIMEOUT` - Timeout para peticiones de imágenes en ms (default: 10000)
+- `MAX_IMAGE_SIZE` - Lado máximo en px (default: 120)
+- `IMAGE_QUALITY` - Calidad WebP 1-100 (default: 38)
+- `MAX_OUTPUT_BYTES` - Si la imagen supera este tamaño, segundo pase más agresivo (default: 18000)
 
 ## 🏃 Ejecución
 

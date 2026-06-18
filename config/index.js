@@ -1,32 +1,27 @@
 import dotenv from 'dotenv';
 
-// Cargar variables de entorno
 dotenv.config();
 
-// Configuración de API
 export const PERSEO_API_KEY = process.env.PERSEO_API_KEY || "SGqmr7Cf4Gn634pGdqZIdISfTZ4SGfeur9IRPLSuM2I-";
 export const API_BASE_URL = process.env.API_BASE_URL || "https://accesoalnusan.app/api";
 export const PORT = process.env.PORT || 3001;
 
-// Configuración de seguridad (API Key)
-// Usamos la misma API key de Perseo para autenticación en nuestro sistema
-// La API key se almacena como hash SHA-256 para comparación segura
-export const API_KEY = process.env.API_KEY || PERSEO_API_KEY; // Por defecto usa la misma que PERSEO_API_KEY
-export const API_SECRET_KEY = process.env.API_SECRET_KEY; // Clave secreta para cifrado (si no existe, se genera automáticamente)
+export const API_KEY = process.env.API_KEY || PERSEO_API_KEY;
+export const API_SECRET_KEY = process.env.API_SECRET_KEY;
 
-// Configuración de compresión de imágenes (ULTRA OPTIMIZADO PARA VELOCIDAD MÁXIMA)
-export const MAX_IMAGE_SIZE = 250; // Tamaño mínimo para máxima velocidad
-export const IMAGE_QUALITY = 65; // Calidad mínima aceptable
-export const MAX_CONCURRENT_REQUESTS = 100; // Paralelismo extremo para descargas
-export const MAX_CONCURRENT_COMPRESSION = 150; // Paralelismo extremo para compresión
-export const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT) || 10000; // Timeout de 10s
-export const COMPRESSION_EFFORT = 0; // Esfuerzo cero = máxima velocidad posible
-export const SKIP_COMPRESSION_IF_SMALL = true; // Saltar compresión si imagen ya es pequeña
-export const MIN_IMAGE_SIZE_TO_COMPRESS = 50000; // Solo comprimir si imagen > 50KB
+// Compresión agresiva (prioriza poco peso en respuesta / banda en Render)
+export const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE, 10) || 120;
+export const IMAGE_QUALITY = parseInt(process.env.IMAGE_QUALITY, 10) || 38;
+export const COMPRESSION_EFFORT = parseInt(process.env.COMPRESSION_EFFORT, 10) || 6;
+export const MAX_OUTPUT_BYTES = parseInt(process.env.MAX_OUTPUT_BYTES, 10) || 18000;
+export const IMAGE_EMERGENCY_SIZE = parseInt(process.env.IMAGE_EMERGENCY_SIZE, 10) || 72;
+export const IMAGE_EMERGENCY_QUALITY = parseInt(process.env.IMAGE_EMERGENCY_QUALITY, 10) || 28;
 
-// Configuración de almacén
-export const ALMACEN_ID = parseInt(process.env.ALMACEN_ID) || 2; // ID del almacén por defecto (2 = CEDI PROMOCIONAL)
+export const MAX_CONCURRENT_REQUESTS = parseInt(process.env.MAX_CONCURRENT_REQUESTS, 10) || 100;
+export const MAX_CONCURRENT_COMPRESSION = parseInt(process.env.MAX_CONCURRENT_COMPRESSION, 10) || 80;
+export const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT, 10) || 10000;
 
-// Configuración de caché (TTL en segundos)
-export const CACHE_TTL_CATEGORIAS = 30 * 60; // 30 minutos para categorías
-export const CACHE_TTL_PRODUCTOS = 15 * 60;  // 15 minutos para productos
+export const ALMACEN_ID = parseInt(process.env.ALMACEN_ID, 10) || 2;
+
+export const CACHE_TTL_CATEGORIAS = 30 * 60;
+export const CACHE_TTL_PRODUCTOS = 15 * 60;
