@@ -4,13 +4,33 @@ import {
     PERSEO_API_KEY,
     API_BASE_URL,
     MAX_CONCURRENT_REQUESTS,
-    IMAGE_REQUEST_TIMEOUT
+    MAX_CONCURRENT_EXISTENCIAS,
+    HIDRATACION_BATCH_SIZE,
+    IMAGE_REQUEST_TIMEOUT,
+    PRODUCTOS_CONSULTA_TIMEOUT
 } from '../config/index.js';
 import { procesarTodasLasImagenes } from '../utils/imageProcessor.js';
 
-// Limitador de concurrencia para descargas de imágenes y existencias
 const limitadorImagenes = pLimit(MAX_CONCURRENT_REQUESTS);
-const limitadorExistencias = pLimit(MAX_CONCURRENT_REQUESTS);
+const limitadorExistencias = pLimit(MAX_CONCURRENT_EXISTENCIAS);
+
+/**
+ * Procesa un array en lotes para limitar pico de memoria (Render 512MB)
+ * @template T, R
+ * @param {T[]} items
+ * @param {number} batchSize
+ * @param {(item: T) => Promise<R>} processor
+ * @returns {Promise<R[]>}
+ */
+async function procesarEnLotes(items, batchSize, processor) {
+    const resultados = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+        const lote = items.slice(i, i + batchSize);
+        const loteResultados = await Promise.all(lote.map(processor));
+        resultados.push(...loteResultados);
+    }
+    return resultados;
+}
 
 /**
  * Obtiene todas las categorías de Perseo
@@ -49,7 +69,7 @@ export async function obtenerProductosPorCategoria(categoriaId) {
         "usuario_creacion": "ADMIN",
         "dispositivo": "API"
     }, {
-        timeout: 30000,
+        timeout: PRODUCTOS_CONSULTA_TIMEOUT,
         validateStatus: (status) => status < 500
     });
     
@@ -127,7 +147,7 @@ async function obtenerImagenesProducto(productoId) {
  * @param {number} almacenId - ID del almacén (por defecto 2)
  * @returns {Promise<number>} - Cantidad de existencias del almacén configurado (0 si no hay)
  */
-async function obtenerExistenciasProducto(productoId, almacenId = 2) {
+export async function obtenerExistenciasProducto(productoId, almacenId = 2) {
     const urlExistencias = `${API_BASE_URL}/existencia_producto`;
     
     try {
@@ -189,18 +209,79 @@ async function obtenerExistenciasProducto(productoId, almacenId = 2) {
 }
 
 /**
- * Hidrata productos con existencias e imágenes opcionales
+ * Consulta existencias frescas para varios productos (tiempo casi real)
+ * @param {number[]} productosIds
+ * @param {number} almacenId
+ * @returns {Promise<Map<number, number>>}
+ */
+export async function obtenerExistenciasPorProductosIds(productosIds, almacenId) {
+    const mapa = new Map();
+
+    await Promise.all(
+        productosIds.map((productoId) =>
+            limitadorExistencias(async () => {
+                const cantidad = await obtenerExistenciasProducto(productoId, almacenId);
+                mapa.set(productoId, cantidad);
+            })
+        )
+    );
+
+    return mapa;
+}
+
+/**
+ * Aplica stock fresco sobre grupos (clon, no muta caché)
+ * @param {Array<{ variantes: Array<Record<string, unknown>> }>} items
+ * @param {number} almacenId
+ * @returns {Promise<Array<{ variantes: Array<Record<string, unknown>> }>>}
+ */
+export async function aplicarExistenciasFrescasEnGrupos(items, almacenId) {
+    const ids = new Set();
+    for (const grupo of items) {
+        for (const variante of grupo.variantes) {
+            const productoId = variante.productosid || variante.productoid || variante.id;
+            const idNum = typeof productoId === 'number' ? productoId : parseInt(String(productoId), 10);
+            if (Number.isFinite(idNum) && idNum > 0) {
+                ids.add(idNum);
+            }
+        }
+    }
+
+    if (ids.size === 0) {
+        return items;
+    }
+
+    const existencias = await obtenerExistenciasPorProductosIds([...ids], almacenId);
+
+    return items.map((grupo) => ({
+        ...grupo,
+        variantes: grupo.variantes.map((variante) => {
+            const productoId = variante.productosid || variante.productoid || variante.id;
+            const idNum = typeof productoId === 'number' ? productoId : parseInt(String(productoId), 10);
+            return {
+                ...variante,
+                existenciastotales: Number.isFinite(idNum) ? (existencias.get(idNum) ?? 0) : 0
+            };
+        })
+    }));
+}
+
+/**
+ * Hidrata productos con imágenes; existencias opcionales (catálogo en caché las omite)
  * @param {Array} productosRaw
  * @param {number} almacenId
- * @param {{ incluirImagenes?: boolean, maxImagenes?: number }} opciones
+ * @param {{ incluirImagenes?: boolean, maxImagenes?: number, omitirExistencias?: boolean }} opciones
  * @returns {Promise<Array>}
  */
 export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, opciones = {}) {
     const incluirImagenes = opciones.incluirImagenes !== false;
     const maxImagenes = opciones.maxImagenes ?? 1;
+    const omitirExistencias = opciones.omitirExistencias === true;
 
-    const productosConImagenRaw = await Promise.all(
-        productosRaw.map((prod) =>
+    const productosConImagenRaw = await procesarEnLotes(
+        productosRaw,
+        HIDRATACION_BATCH_SIZE,
+        (prod) =>
             limitadorImagenes(async () => {
                 const productoId = prod.productosid || prod.productoid || prod.id;
 
@@ -215,6 +296,14 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, 
 
                 try {
                     if (!incluirImagenes) {
+                        if (omitirExistencias) {
+                            return {
+                                producto: prod,
+                                imagenesBase64: [],
+                                existenciastotales: 0,
+                                productoId
+                            };
+                        }
                         const existencias = await obtenerExistenciasProducto(productoId, almacenId);
                         return {
                             producto: prod,
@@ -224,13 +313,14 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, 
                         };
                     }
 
-                    const [imagenesBase64, existencias] = await Promise.all([
-                        obtenerImagenesProducto(productoId),
-                        obtenerExistenciasProducto(productoId, almacenId)
-                    ]);
-
+                    const imagenesBase64 = await obtenerImagenesProducto(productoId);
                     const imagenesLimitadas =
                         maxImagenes > 0 ? imagenesBase64.slice(0, maxImagenes) : [];
+
+                    let existencias = 0;
+                    if (!omitirExistencias) {
+                        existencias = await obtenerExistenciasProducto(productoId, almacenId);
+                    }
 
                     return {
                         producto: prod,
@@ -247,7 +337,6 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, 
                     };
                 }
             })
-        )
     );
 
     if (!incluirImagenes) {

@@ -101,16 +101,59 @@ export function parseBodyBoolean(value, defaultValue) {
 }
 
 /**
- * Clave de caché única por categoría, almacén y opciones de respuesta
+ * Caché del catálogo (sin almacén): imágenes y datos; el stock se refresca en cada petición
  * @param {number} categoriaId
- * @param {number} almacenId
  * @param {{ incluirImagenes: boolean, maxImagenes: number, tarifasResumidas: boolean }} opciones
  * @returns {string}
  */
-export function construirCacheKeyProductos(categoriaId, almacenId, opciones) {
+export function construirCacheKeyCatalogo(categoriaId, opciones) {
     const img = opciones.incluirImagenes ? 1 : 0;
     const tar = opciones.tarifasResumidas ? 1 : 0;
-    return `prod_c${categoriaId}_a${almacenId}_i${img}_m${opciones.maxImagenes}_t${tar}`;
+    return `catalog_c${categoriaId}_i${img}_m${opciones.maxImagenes}_t${tar}`;
+}
+
+/** @deprecated Usar construirCacheKeyCatalogo */
+export function construirCacheKeyProductos(categoriaId, _almacenId, opciones) {
+    return construirCacheKeyCatalogo(categoriaId, opciones);
+}
+
+/**
+ * Clona grupos aplicando existencias frescas por productosid
+ * @param {Array<{ variantes: Array<Record<string, unknown>> }>} items
+ * @param {Map<number, number>} existenciasPorProductoId
+ * @returns {Array<{ variantes: Array<Record<string, unknown>> }>}
+ */
+export function clonarGruposConExistencias(items, existenciasPorProductoId) {
+    return items.map((grupo) => ({
+        ...grupo,
+        variantes: grupo.variantes.map((variante) => {
+            const productoId = variante.productosid || variante.productoid || variante.id;
+            const idNum = typeof productoId === 'number' ? productoId : parseInt(String(productoId), 10);
+            return {
+                ...variante,
+                existenciastotales: Number.isFinite(idNum) ? (existenciasPorProductoId.get(idNum) ?? 0) : 0
+            };
+        })
+    }));
+}
+
+/**
+ * Extrae IDs únicos de variantes en grupos
+ * @param {Array<{ variantes: Array<Record<string, unknown>> }>} items
+ * @returns {number[]}
+ */
+export function extraerProductosIdsDeGrupos(items) {
+    const ids = new Set();
+    for (const grupo of items) {
+        for (const variante of grupo.variantes) {
+            const productoId = variante.productosid || variante.productoid || variante.id;
+            const idNum = typeof productoId === 'number' ? productoId : parseInt(String(productoId), 10);
+            if (Number.isFinite(idNum) && idNum > 0) {
+                ids.add(idNum);
+            }
+        }
+    }
+    return [...ids];
 }
 
 /**

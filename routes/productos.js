@@ -1,9 +1,13 @@
-import { obtenerProductosPorCategoria, hidratarProductosConImagenes } from '../services/perseoService.js';
+import {
+    obtenerProductosPorCategoria,
+    hidratarProductosConImagenes,
+    aplicarExistenciasFrescasEnGrupos
+} from '../services/perseoService.js';
 import {
     agruparProductos,
     aplicarOpcionesVariante,
     buscarCategoriaPorNombre,
-    construirCacheKeyProductos,
+    construirCacheKeyCatalogo,
     enriquecerProductosConNombresTaxonomia,
     obtenerMapaCategoriasPorId,
     obtenerMapaSubcategoriasPorId,
@@ -21,6 +25,39 @@ import {
 import { authenticateApiKey } from '../middleware/auth.js';
 import { validarAlmacen } from '../services/almacenService.js';
 import { logError } from '../utils/logger.js';
+
+/**
+ * Arma respuesta final con stock fresco y metadatos
+ * @param {object} params
+ * @returns {Promise<object>}
+ */
+async function construirRespuestaProductos(params) {
+    const {
+        categoriaIdNum,
+        almacenIdNum,
+        opcionesRespuesta,
+        mapaCategorias,
+        itemsGrupos
+    } = params;
+
+    const itemsConStock = await aplicarExistenciasFrescasEnGrupos(itemsGrupos, almacenIdNum);
+
+    return {
+        success: true,
+        categoria_consultada: categoriaIdNum,
+        categoria_consultada_nombre: mapaCategorias.get(categoriaIdNum) ?? null,
+        almacen_consultado: almacenIdNum,
+        total_grupos: itemsConStock.length,
+        opciones_aplicadas: {
+            incluir_imagenes: opcionesRespuesta.incluirImagenes,
+            max_imagenes: opcionesRespuesta.maxImagenes,
+            tarifas_resumidas: opcionesRespuesta.tarifasResumidas,
+            stock_tiempo_real: true,
+            catalogo_cache_segundos: CACHE_TTL_PRODUCTOS
+        },
+        items: itemsConStock
+    };
+}
 
 /**
  * Endpoint: POST /api/productos
@@ -100,17 +137,33 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
             }
         }
 
-        const cacheKey = construirCacheKeyProductos(categoriaIdNum, almacenIdNum, opcionesRespuesta);
-        const cachedData = cacheProductos.get(cacheKey);
-        if (cachedData) {
-            res.set('Cache-Control', `public, max-age=${CACHE_CONTROL_PRODUCTOS}`);
-            res.set('X-Cache', 'HIT');
-            return res.json(cachedData);
-        }
+        const catalogKey = construirCacheKeyCatalogo(categoriaIdNum, opcionesRespuesta);
 
         try {
             if (!PERSEO_API_KEY || !API_BASE_URL) {
                 throw new Error("Configuración incompleta: PERSEO_API_KEY o API_BASE_URL no están definidos");
+            }
+
+            const [mapaCategorias, mapaSubcategorias] = await Promise.all([
+                obtenerMapaCategoriasPorId(cacheCategorias),
+                obtenerMapaSubcategoriasPorId(cacheCategorias)
+            ]);
+
+            const catalogoCache = cacheProductos.get(catalogKey);
+
+            if (catalogoCache?.items) {
+                const resultado = await construirRespuestaProductos({
+                    categoriaIdNum,
+                    almacenIdNum,
+                    opcionesRespuesta,
+                    mapaCategorias,
+                    itemsGrupos: catalogoCache.items
+                });
+
+                res.set('Cache-Control', `private, max-age=${CACHE_CONTROL_PRODUCTOS}`);
+                res.set('X-Cache-Catalogo', 'HIT');
+                res.set('X-Stock', 'FRESH');
+                return res.json(resultado);
             }
 
             const resPerseo = await obtenerProductosPorCategoria(categoriaIdNum);
@@ -135,14 +188,10 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 almacenIdNum,
                 {
                     incluirImagenes: opcionesRespuesta.incluirImagenes,
-                    maxImagenes: opcionesRespuesta.maxImagenes
+                    maxImagenes: opcionesRespuesta.maxImagenes,
+                    omitirExistencias: true
                 }
             );
-
-            const [mapaCategorias, mapaSubcategorias] = await Promise.all([
-                obtenerMapaCategoriasPorId(cacheCategorias),
-                obtenerMapaSubcategoriasPorId(cacheCategorias)
-            ]);
 
             const productosConNombres = enriquecerProductosConNombresTaxonomia(
                 productosHidratados,
@@ -150,25 +199,24 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 mapaSubcategorias
             ).map((prod) => aplicarOpcionesVariante(prod, opcionesRespuesta));
 
-            const resultadoFinal = agruparProductos(productosConNombres);
+            const itemsGrupos = agruparProductos(productosConNombres);
 
-            const resultado = {
-                success: true,
+            cacheProductos.set(catalogKey, {
                 categoria_consultada: categoriaIdNum,
-                categoria_consultada_nombre: mapaCategorias.get(categoriaIdNum) ?? null,
-                total_grupos: resultadoFinal.length,
-                opciones_aplicadas: {
-                    incluir_imagenes: opcionesRespuesta.incluirImagenes,
-                    max_imagenes: opcionesRespuesta.maxImagenes,
-                    tarifas_resumidas: opcionesRespuesta.tarifasResumidas,
-                    cache_ttl_segundos: CACHE_TTL_PRODUCTOS
-                },
-                items: resultadoFinal
-            };
+                items: itemsGrupos
+            });
 
-            cacheProductos.set(cacheKey, resultado);
-            res.set('Cache-Control', `public, max-age=${CACHE_CONTROL_PRODUCTOS}`);
-            res.set('X-Cache', 'MISS');
+            const resultado = await construirRespuestaProductos({
+                categoriaIdNum,
+                almacenIdNum,
+                opcionesRespuesta,
+                mapaCategorias,
+                itemsGrupos
+            });
+
+            res.set('Cache-Control', `private, max-age=${CACHE_CONTROL_PRODUCTOS}`);
+            res.set('X-Cache-Catalogo', 'MISS');
+            res.set('X-Stock', 'FRESH');
             res.json(resultado);
 
         } catch (error) {

@@ -17,9 +17,12 @@ export const MAX_OUTPUT_BYTES = parseInt(process.env.MAX_OUTPUT_BYTES, 10) || 18
 export const IMAGE_EMERGENCY_SIZE = parseInt(process.env.IMAGE_EMERGENCY_SIZE, 10) || 72;
 export const IMAGE_EMERGENCY_QUALITY = parseInt(process.env.IMAGE_EMERGENCY_QUALITY, 10) || 28;
 
-export const MAX_CONCURRENT_REQUESTS = parseInt(process.env.MAX_CONCURRENT_REQUESTS, 10) || 100;
-export const MAX_CONCURRENT_COMPRESSION = parseInt(process.env.MAX_CONCURRENT_COMPRESSION, 10) || 80;
+export const MAX_CONCURRENT_REQUESTS = parseInt(process.env.MAX_CONCURRENT_REQUESTS, 10) || 12;
+export const MAX_CONCURRENT_COMPRESSION = parseInt(process.env.MAX_CONCURRENT_COMPRESSION, 10) || 6;
+export const MAX_CONCURRENT_EXISTENCIAS = parseInt(process.env.MAX_CONCURRENT_EXISTENCIAS, 10) || 20;
+export const HIDRATACION_BATCH_SIZE = parseInt(process.env.HIDRATACION_BATCH_SIZE, 10) || 8;
 export const IMAGE_REQUEST_TIMEOUT = parseInt(process.env.IMAGE_REQUEST_TIMEOUT, 10) || 10000;
+export const PRODUCTOS_CONSULTA_TIMEOUT = parseInt(process.env.PRODUCTOS_CONSULTA_TIMEOUT, 10) || 60000;
 
 export const ALMACEN_ID = parseInt(process.env.ALMACEN_ID, 10) || 2;
 
@@ -31,4 +34,4 @@ export const CACHE_TTL_PRODUCTOS = parseInt(process.env.CACHE_TTL_PRODUCTOS, 10)
 export const DEFAULT_INCLUIR_IMAGENES = process.env.DEFAULT_INCLUIR_IMAGENES !== 'false';
 export const DEFAULT_MAX_IMAGENES = parseInt(process.env.DEFAULT_MAX_IMAGENES, 10) || 1;
 export const DEFAULT_TARIFAS_RESUMIDAS = process.env.DEFAULT_TARIFAS_RESUMIDAS === 'true';
-export const CACHE_CONTROL_PRODUCTOS = parseInt(process.env.CACHE_CONTROL_PRODUCTOS, 10) || CACHE_TTL_PRODUCTOS;
+export const CACHE_CONTROL_PRODUCTOS = parseInt(process.env.CACHE_CONTROL_PRODUCTOS, 10) || 60;

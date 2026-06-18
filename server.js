@@ -27,8 +27,8 @@ app.get('/', (req, res) => {
 });
 
 // Configuración de caché
-const cacheCategorias = new NodeCache({ stdTTL: CACHE_TTL_CATEGORIAS });
-const cacheProductos = new NodeCache({ stdTTL: CACHE_TTL_PRODUCTOS });
+const cacheCategorias = new NodeCache({ stdTTL: CACHE_TTL_CATEGORIAS, useClones: false });
+const cacheProductos = new NodeCache({ stdTTL: CACHE_TTL_PRODUCTOS, useClones: false });
 
 // Configurar rutas
 setupCategoriasRoutes(app, cacheCategorias);
