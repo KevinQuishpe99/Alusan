@@ -6,8 +6,10 @@ import {
     MAX_CONCURRENT_REQUESTS,
     MAX_CONCURRENT_EXISTENCIAS,
     HIDRATACION_BATCH_SIZE,
+    EXISTENCIAS_BATCH_SIZE,
     IMAGE_REQUEST_TIMEOUT,
-    PRODUCTOS_CONSULTA_TIMEOUT
+    PRODUCTOS_CONSULTA_TIMEOUT,
+    MAX_IMAGE_RESPONSE_BYTES
 } from '../config/index.js';
 import { procesarTodasLasImagenes } from '../utils/imageProcessor.js';
 
@@ -81,8 +83,9 @@ export async function obtenerProductosPorCategoria(categoriaId) {
  * @param {number} productoId - ID del producto
  * @returns {Promise<Array>} - Array de imágenes en Base64
  */
-async function obtenerImagenesProducto(productoId) {
+async function obtenerImagenesProducto(productoId, maxImagenes = 1) {
     const urlImagen = `${API_BASE_URL}/productos_imagenes_consulta`;
+    const limite = maxImagenes > 0 ? maxImagenes : 0;
     
     try {
         const resImg = await axios.post(urlImagen, {
@@ -90,8 +93,8 @@ async function obtenerImagenesProducto(productoId) {
             "productosid": productoId
         }, {
             timeout: IMAGE_REQUEST_TIMEOUT,
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity,
+            maxContentLength: MAX_IMAGE_RESPONSE_BYTES,
+            maxBodyLength: MAX_IMAGE_RESPONSE_BYTES,
             validateStatus: (status) => status < 500,
             httpAgent: false,
             httpsAgent: false
@@ -102,10 +105,11 @@ async function obtenerImagenesProducto(productoId) {
             if (resImg.data?.productos_imagenes && 
                 Array.isArray(resImg.data.productos_imagenes) && 
                 resImg.data.productos_imagenes.length > 0) {
-                // Tomar TODAS las imágenes del array
-                return resImg.data.productos_imagenes
+                // Solo conservar las imágenes necesarias para la respuesta
+                const imagenes = resImg.data.productos_imagenes
                     .map(img => img.imagen)
                     .filter(img => img);
+                return limite > 0 ? imagenes.slice(0, limite) : imagenes;
             }
         }
         
@@ -118,8 +122,8 @@ async function obtenerImagenesProducto(productoId) {
                 "productosid": productoId
             }, {
                 timeout: IMAGE_REQUEST_TIMEOUT * 2,
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity,
+                maxContentLength: MAX_IMAGE_RESPONSE_BYTES,
+                maxBodyLength: MAX_IMAGE_RESPONSE_BYTES,
                 validateStatus: (status) => status < 500,
                 httpAgent: false,
                 httpsAgent: false
@@ -129,9 +133,10 @@ async function obtenerImagenesProducto(productoId) {
                 resImgRetry.data?.productos_imagenes && 
                 Array.isArray(resImgRetry.data.productos_imagenes) &&
                 resImgRetry.data.productos_imagenes.length > 0) {
-                return resImgRetry.data.productos_imagenes
+                const imagenes = resImgRetry.data.productos_imagenes
                     .map(img => img.imagen)
                     .filter(img => img);
+                return limite > 0 ? imagenes.slice(0, limite) : imagenes;
             }
         } catch (retryErr) {
             // Si el retry también falla, devolver array vacío
@@ -217,14 +222,17 @@ export async function obtenerExistenciasProducto(productoId, almacenId = 2) {
 export async function obtenerExistenciasPorProductosIds(productosIds, almacenId) {
     const mapa = new Map();
 
-    await Promise.all(
-        productosIds.map((productoId) =>
-            limitadorExistencias(async () => {
-                const cantidad = await obtenerExistenciasProducto(productoId, almacenId);
-                mapa.set(productoId, cantidad);
-            })
-        )
-    );
+    for (let i = 0; i < productosIds.length; i += EXISTENCIAS_BATCH_SIZE) {
+        const lote = productosIds.slice(i, i + EXISTENCIAS_BATCH_SIZE);
+        await Promise.all(
+            lote.map((productoId) =>
+                limitadorExistencias(async () => {
+                    const cantidad = await obtenerExistenciasProducto(productoId, almacenId);
+                    mapa.set(productoId, cantidad);
+                })
+            )
+        );
+    }
 
     return mapa;
 }
@@ -313,9 +321,7 @@ export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, 
                         };
                     }
 
-                    const imagenesBase64 = await obtenerImagenesProducto(productoId);
-                    const imagenesLimitadas =
-                        maxImagenes > 0 ? imagenesBase64.slice(0, maxImagenes) : [];
+                    const imagenesLimitadas = await obtenerImagenesProducto(productoId, maxImagenes);
 
                     let existencias = 0;
                     if (!omitirExistencias) {

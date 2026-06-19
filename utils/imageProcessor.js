@@ -7,8 +7,12 @@ import {
     COMPRESSION_EFFORT,
     MAX_OUTPUT_BYTES,
     IMAGE_EMERGENCY_SIZE,
-    IMAGE_EMERGENCY_QUALITY
+    IMAGE_EMERGENCY_QUALITY,
+    COMPRESSION_BATCH_SIZE
 } from '../config/index.js';
+
+sharp.cache(false);
+sharp.concurrency(1);
 
 export const limitadorCompresion = pLimit(MAX_CONCURRENT_COMPRESSION);
 
@@ -94,18 +98,24 @@ export async function procesarTodasLasImagenes(productosConImagenes) {
         }
     });
 
-    const imagenesComprimidas = await Promise.all(
-        todasLasImagenes.map((item) =>
-            limitadorCompresion(async () => {
-                const imagenComprimida = await procesarImagen(item.imagenBase64);
-                return {
-                    productoIndex: item.productoIndex,
-                    imagenIndex: item.imagenIndex,
-                    imagenComprimida
-                };
-            })
-        )
-    );
+    const imagenesComprimidas = [];
+
+    for (let i = 0; i < todasLasImagenes.length; i += COMPRESSION_BATCH_SIZE) {
+        const lote = todasLasImagenes.slice(i, i + COMPRESSION_BATCH_SIZE);
+        const loteComprimido = await Promise.all(
+            lote.map((item) =>
+                limitadorCompresion(async () => {
+                    const imagenComprimida = await procesarImagen(item.imagenBase64);
+                    return {
+                        productoIndex: item.productoIndex,
+                        imagenIndex: item.imagenIndex,
+                        imagenComprimida
+                    };
+                })
+            )
+        );
+        imagenesComprimidas.push(...loteComprimido);
+    }
 
     return productosConImagenes.map((item, productoIndex) => {
         if (!item.imagenesBase64?.length) {

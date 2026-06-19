@@ -2,15 +2,43 @@ services:
   - type: web
     name: perseo-api-server
     runtime: node
-    plan: free # Puedes cambiarlo a 'starter' si el procesamiento de imágenes consume mucha RAM
+    plan: starter
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: PERSEO_API_KEY
-        sync: false # Correcto: Esto obliga a que la pongas manualmente en el dashboard por seguridad
+        sync: false
+      - key: API_KEY
+        sync: false
       - key: API_BASE_URL
         value: https://accesoalnusan.app/api
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000 # Puerto estándar de Render
+        value: 10000
+      - key: ALMACEN_ID
+        value: "2"
+      - key: CACHE_TTL_CATEGORIAS
+        value: "21600"
+      - key: CACHE_TTL_PRODUCTOS
+        value: "14400"
+      - key: CACHE_CONTROL_PRODUCTOS
+        value: "60"
+      - key: DEFAULT_INCLUIR_IMAGENES
+        value: "false"
+      - key: DEFAULT_MAX_IMAGENES
+        value: "1"
+      - key: DEFAULT_TARIFAS_RESUMIDAS
+        value: "true"
+      - key: MAX_CONCURRENT_REQUESTS
+        value: "4"
+      - key: MAX_CONCURRENT_COMPRESSION
+        value: "2"
+      - key: MAX_CONCURRENT_EXISTENCIAS
+        value: "6"
+      - key: HIDRATACION_BATCH_SIZE
+        value: "4"
+      - key: EXISTENCIAS_BATCH_SIZE
+        value: "12"
+      - key: COMPRESSION_BATCH_SIZE
+        value: "4"
