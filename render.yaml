@@ -25,7 +25,7 @@ services:
       - key: CACHE_CONTROL_PRODUCTOS
         value: "60"
       - key: DEFAULT_INCLUIR_IMAGENES
-        value: "false"
+        value: "true"
       - key: DEFAULT_MAX_IMAGENES
         value: "1"
       - key: DEFAULT_TARIFAS_RESUMIDAS

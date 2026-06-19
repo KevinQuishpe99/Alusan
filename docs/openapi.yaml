@@ -409,7 +409,6 @@ paths:
                   api_key: poner_la_api_key_aqui
                   categoria_id: 126
                   almacen_id: 2
-                  incluir_imagenes: false
                   tarifas_resumidas: true
               validoPorId:
                 summary: '✅ Válido — solo categoria_id (3 campos)'

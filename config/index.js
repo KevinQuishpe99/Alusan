@@ -44,7 +44,7 @@ export const CACHE_TTL_PRODUCTOS = entero(process.env.CACHE_TTL_PRODUCTOS, 4 * 6
 export const DEFAULT_INCLUIR_IMAGENES =
     process.env.DEFAULT_INCLUIR_IMAGENES !== undefined
         ? process.env.DEFAULT_INCLUIR_IMAGENES !== 'false'
-        : !isProd;
+        : true;
 export const DEFAULT_MAX_IMAGENES = entero(process.env.DEFAULT_MAX_IMAGENES, 1);
 export const DEFAULT_TARIFAS_RESUMIDAS =
     process.env.DEFAULT_TARIFAS_RESUMIDAS !== undefined
