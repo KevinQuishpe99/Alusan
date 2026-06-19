@@ -3,36 +3,14 @@ import pLimit from 'p-limit';
 import {
     PERSEO_API_KEY,
     API_BASE_URL,
-    MAX_CONCURRENT_REQUESTS,
     MAX_CONCURRENT_EXISTENCIAS,
-    HIDRATACION_BATCH_SIZE,
     EXISTENCIAS_BATCH_SIZE,
     IMAGE_REQUEST_TIMEOUT,
-    PRODUCTOS_CONSULTA_TIMEOUT,
-    MAX_IMAGE_RESPONSE_BYTES
+    PRODUCTOS_CONSULTA_TIMEOUT
 } from '../config/index.js';
-import { procesarTodasLasImagenes } from '../utils/imageProcessor.js';
+import { obtenerImagenesComprimidas } from './imagenProductoService.js';
 
-const limitadorImagenes = pLimit(MAX_CONCURRENT_REQUESTS);
 const limitadorExistencias = pLimit(MAX_CONCURRENT_EXISTENCIAS);
-
-/**
- * Procesa un array en lotes para limitar pico de memoria (Render 512MB)
- * @template T, R
- * @param {T[]} items
- * @param {number} batchSize
- * @param {(item: T) => Promise<R>} processor
- * @returns {Promise<R[]>}
- */
-async function procesarEnLotes(items, batchSize, processor) {
-    const resultados = [];
-    for (let i = 0; i < items.length; i += batchSize) {
-        const lote = items.slice(i, i + batchSize);
-        const loteResultados = await Promise.all(lote.map(processor));
-        resultados.push(...loteResultados);
-    }
-    return resultados;
-}
 
 /**
  * Obtiene todas las categorías de Perseo
@@ -76,74 +54,6 @@ export async function obtenerProductosPorCategoria(categoriaId) {
     });
     
     return response.data;
-}
-
-/**
- * Obtiene las imágenes de un producto específico
- * @param {number} productoId - ID del producto
- * @returns {Promise<Array>} - Array de imágenes en Base64
- */
-async function obtenerImagenesProducto(productoId, maxImagenes = 1) {
-    const urlImagen = `${API_BASE_URL}/productos_imagenes_consulta`;
-    const limite = maxImagenes > 0 ? maxImagenes : 0;
-    
-    try {
-        const resImg = await axios.post(urlImagen, {
-            "api_key": PERSEO_API_KEY,
-            "productosid": productoId
-        }, {
-            timeout: IMAGE_REQUEST_TIMEOUT,
-            maxContentLength: MAX_IMAGE_RESPONSE_BYTES,
-            maxBodyLength: MAX_IMAGE_RESPONSE_BYTES,
-            validateStatus: (status) => status < 500,
-            httpAgent: false,
-            httpsAgent: false
-        });
-        
-        // Verificar si hay información (informacion: true)
-        if (resImg.data?.informacion === true) {
-            if (resImg.data?.productos_imagenes && 
-                Array.isArray(resImg.data.productos_imagenes) && 
-                resImg.data.productos_imagenes.length > 0) {
-                // Solo conservar las imágenes necesarias para la respuesta
-                const imagenes = resImg.data.productos_imagenes
-                    .map(img => img.imagen)
-                    .filter(img => img);
-                return limite > 0 ? imagenes.slice(0, limite) : imagenes;
-            }
-        }
-        
-        return [];
-    } catch (err) {
-        // Si falla, intentar retry una vez
-        try {
-            const resImgRetry = await axios.post(urlImagen, {
-                "api_key": PERSEO_API_KEY,
-                "productosid": productoId
-            }, {
-                timeout: IMAGE_REQUEST_TIMEOUT * 2,
-                maxContentLength: MAX_IMAGE_RESPONSE_BYTES,
-                maxBodyLength: MAX_IMAGE_RESPONSE_BYTES,
-                validateStatus: (status) => status < 500,
-                httpAgent: false,
-                httpsAgent: false
-            });
-            
-            if (resImgRetry.data?.informacion === true && 
-                resImgRetry.data?.productos_imagenes && 
-                Array.isArray(resImgRetry.data.productos_imagenes) &&
-                resImgRetry.data.productos_imagenes.length > 0) {
-                const imagenes = resImgRetry.data.productos_imagenes
-                    .map(img => img.imagen)
-                    .filter(img => img);
-                return limite > 0 ? imagenes.slice(0, limite) : imagenes;
-            }
-        } catch (retryErr) {
-            // Si el retry también falla, devolver array vacío
-        }
-        
-        return [];
-    }
 }
 
 /**
@@ -275,92 +185,66 @@ export async function aplicarExistenciasFrescasEnGrupos(items, almacenId) {
 }
 
 /**
- * Hidrata productos con imágenes; existencias opcionales (catálogo en caché las omite)
+ * Hidrata productos con imágenes (secuencial, bajo pico de memoria); existencias opcionales
  * @param {Array} productosRaw
  * @param {number} almacenId
  * @param {{ incluirImagenes?: boolean, maxImagenes?: number, omitirExistencias?: boolean }} opciones
+ * @param {import('node-cache')|null} [cacheImagenes]
  * @returns {Promise<Array>}
  */
-export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, opciones = {}) {
+export async function hidratarProductosConImagenes(productosRaw, almacenId = 2, opciones = {}, cacheImagenes = null) {
     const incluirImagenes = opciones.incluirImagenes !== false;
     const maxImagenes = opciones.maxImagenes ?? 1;
     const omitirExistencias = opciones.omitirExistencias === true;
+    const resultados = [];
 
-    const productosConImagenRaw = await procesarEnLotes(
-        productosRaw,
-        HIDRATACION_BATCH_SIZE,
-        (prod) =>
-            limitadorImagenes(async () => {
-                const productoId = prod.productosid || prod.productoid || prod.id;
+    for (const prod of productosRaw) {
+        const productoId = prod.productosid || prod.productoid || prod.id;
 
-                if (!productoId) {
-                    return {
-                        producto: prod,
-                        imagenesBase64: [],
-                        existenciastotales: 0,
-                        productoId: null
-                    };
+        if (!productoId) {
+            resultados.push({
+                ...prod,
+                imagenes_data: [],
+                existenciastotales: 0
+            });
+            continue;
+        }
+
+        try {
+            if (!incluirImagenes) {
+                let existencias = 0;
+                if (!omitirExistencias) {
+                    existencias = await obtenerExistenciasProducto(productoId, almacenId);
                 }
+                resultados.push({
+                    ...prod,
+                    imagenes_data: [],
+                    existenciastotales: existencias
+                });
+                continue;
+            }
 
-                try {
-                    if (!incluirImagenes) {
-                        if (omitirExistencias) {
-                            return {
-                                producto: prod,
-                                imagenesBase64: [],
-                                existenciastotales: 0,
-                                productoId
-                            };
-                        }
-                        const existencias = await obtenerExistenciasProducto(productoId, almacenId);
-                        return {
-                            producto: prod,
-                            imagenesBase64: [],
-                            existenciastotales: existencias,
-                            productoId
-                        };
-                    }
+            const imagenes_data = await obtenerImagenesComprimidas(productoId, maxImagenes, cacheImagenes);
 
-                    const imagenesLimitadas = await obtenerImagenesProducto(productoId, maxImagenes);
+            let existencias = 0;
+            if (!omitirExistencias) {
+                existencias = await obtenerExistenciasProducto(productoId, almacenId);
+            }
 
-                    let existencias = 0;
-                    if (!omitirExistencias) {
-                        existencias = await obtenerExistenciasProducto(productoId, almacenId);
-                    }
-
-                    return {
-                        producto: prod,
-                        imagenesBase64: imagenesLimitadas,
-                        existenciastotales: existencias,
-                        productoId
-                    };
-                } catch {
-                    return {
-                        producto: prod,
-                        imagenesBase64: [],
-                        existenciastotales: 0,
-                        productoId
-                    };
-                }
-            })
-    );
-
-    if (!incluirImagenes) {
-        return productosConImagenRaw.map((item) => ({
-            ...item.producto,
-            imagenes_data: [],
-            existenciastotales: item.existenciastotales || 0
-        }));
+            resultados.push({
+                ...prod,
+                imagenes_data,
+                existenciastotales: existencias
+            });
+        } catch {
+            resultados.push({
+                ...prod,
+                imagenes_data: [],
+                existenciastotales: 0
+            });
+        }
     }
 
-    const productosComprimidos = await procesarTodasLasImagenes(productosConImagenRaw);
-
-    return productosComprimidos.map((producto, index) => {
-        const productoOriginal = productosConImagenRaw[index];
-        return {
-            ...producto,
-            existenciastotales: productoOriginal?.existenciastotales || 0
-        };
-    });
+    return resultados;
 }
 

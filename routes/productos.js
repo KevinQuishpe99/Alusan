@@ -13,6 +13,7 @@ import {
     obtenerMapaSubcategoriasPorId,
     parseBodyBoolean
 } from '../utils/productUtils.js';
+import { adjuntarImagenesAGrupos, stripImagenesDeGrupos } from '../services/imagenProductoService.js';
 import {
     PERSEO_API_KEY,
     API_BASE_URL,
@@ -37,17 +38,19 @@ async function construirRespuestaProductos(params) {
         almacenIdNum,
         opcionesRespuesta,
         mapaCategorias,
-        itemsGrupos
+        itemsGrupos,
+        cacheImagenes
     } = params;
 
     const itemsConStock = await aplicarExistenciasFrescasEnGrupos(itemsGrupos, almacenIdNum);
+    const itemsFinales = await adjuntarImagenesAGrupos(itemsConStock, cacheImagenes, opcionesRespuesta);
 
     return {
         success: true,
         categoria_consultada: categoriaIdNum,
         categoria_consultada_nombre: mapaCategorias.get(categoriaIdNum) ?? null,
         almacen_consultado: almacenIdNum,
-        total_grupos: itemsConStock.length,
+        total_grupos: itemsFinales.length,
         opciones_aplicadas: {
             incluir_imagenes: opcionesRespuesta.incluirImagenes,
             max_imagenes: opcionesRespuesta.maxImagenes,
@@ -55,14 +58,14 @@ async function construirRespuestaProductos(params) {
             stock_tiempo_real: true,
             catalogo_cache_segundos: CACHE_TTL_PRODUCTOS
         },
-        items: itemsConStock
+        items: itemsFinales
     };
 }
 
 /**
  * Endpoint: POST /api/productos
  */
-export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
+export function setupProductosRoutes(app, cacheProductos, cacheCategorias, cacheImagenes) {
     app.post('/api/productos', authenticateApiKey, async (req, res) => {
         const categoriaId = req.body?.categoria_id;
         const categoriaNombre = req.body?.categoria_nombre;
@@ -157,7 +160,8 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                     almacenIdNum,
                     opcionesRespuesta,
                     mapaCategorias,
-                    itemsGrupos: catalogoCache.items
+                    itemsGrupos: catalogoCache.items,
+                    cacheImagenes
                 });
 
                 res.set('Cache-Control', `private, max-age=${CACHE_CONTROL_PRODUCTOS}`);
@@ -190,7 +194,8 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                     incluirImagenes: opcionesRespuesta.incluirImagenes,
                     maxImagenes: opcionesRespuesta.maxImagenes,
                     omitirExistencias: true
-                }
+                },
+                cacheImagenes
             );
 
             const productosConNombres = enriquecerProductosConNombresTaxonomia(
@@ -199,7 +204,7 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 mapaSubcategorias
             ).map((prod) => aplicarOpcionesVariante(prod, opcionesRespuesta));
 
-            const itemsGrupos = agruparProductos(productosConNombres);
+            const itemsGrupos = stripImagenesDeGrupos(agruparProductos(productosConNombres));
 
             cacheProductos.set(catalogKey, {
                 categoria_consultada: categoriaIdNum,
@@ -211,7 +216,8 @@ export function setupProductosRoutes(app, cacheProductos, cacheCategorias) {
                 almacenIdNum,
                 opcionesRespuesta,
                 mapaCategorias,
-                itemsGrupos
+                itemsGrupos,
+                cacheImagenes
             });
 
             res.set('Cache-Control', `private, max-age=${CACHE_CONTROL_PRODUCTOS}`);

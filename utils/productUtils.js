@@ -101,15 +101,14 @@ export function parseBodyBoolean(value, defaultValue) {
 }
 
 /**
- * Caché del catálogo (sin almacén): imágenes y datos; el stock se refresca en cada petición
+ * Caché del catálogo (sin imágenes ni almacén); imágenes van en caché aparte por producto
  * @param {number} categoriaId
- * @param {{ incluirImagenes: boolean, maxImagenes: number, tarifasResumidas: boolean }} opciones
+ * @param {{ tarifasResumidas: boolean }} opciones
  * @returns {string}
  */
 export function construirCacheKeyCatalogo(categoriaId, opciones) {
-    const img = opciones.incluirImagenes ? 1 : 0;
     const tar = opciones.tarifasResumidas ? 1 : 0;
-    return `catalog_c${categoriaId}_i${img}_m${opciones.maxImagenes}_t${tar}`;
+    return `catalog_c${categoriaId}_t${tar}`;
 }
 
 /** @deprecated Usar construirCacheKeyCatalogo */

@@ -1,14 +1,20 @@
-import { CACHE_TTL_CATEGORIAS, CACHE_TTL_PRODUCTOS } from '../config/index.js';
+import {
+    CACHE_TTL_CATEGORIAS,
+    CACHE_TTL_PRODUCTOS,
+    CACHE_MAX_CATALOG_KEYS,
+    CACHE_MAX_IMAGENES_KEYS
+} from '../config/index.js';
 import { authenticateApiKey } from '../middleware/auth.js';
 
 /**
  * Endpoint: POST /api/cache/stats
  * Obtiene estadísticas del caché
  */
-export function setupCacheRoutes(app, cacheCategorias, cacheProductos) {
+export function setupCacheRoutes(app, cacheCategorias, cacheProductos, cacheImagenes) {
     app.post('/api/cache/stats', authenticateApiKey, (req, res) => {
         const statsCategorias = cacheCategorias.getStats();
         const statsProductos = cacheProductos.getStats();
+        const statsImagenes = cacheImagenes.getStats();
 
         res.json({
             success: true,
@@ -22,7 +28,15 @@ export function setupCacheRoutes(app, cacheCategorias, cacheProductos) {
                 keys: statsProductos.keys || 0,
                 hits: statsProductos.hits || 0,
                 misses: statsProductos.misses || 0,
-                ttl: CACHE_TTL_PRODUCTOS
+                ttl: CACHE_TTL_PRODUCTOS,
+                max_keys: CACHE_MAX_CATALOG_KEYS
+            },
+            imagenes: {
+                keys: statsImagenes.keys || 0,
+                hits: statsImagenes.hits || 0,
+                misses: statsImagenes.misses || 0,
+                ttl: CACHE_TTL_PRODUCTOS,
+                max_keys: CACHE_MAX_IMAGENES_KEYS
             }
         });
     });
@@ -34,11 +48,11 @@ export function setupCacheRoutes(app, cacheCategorias, cacheProductos) {
     app.post('/api/cache/clear', authenticateApiKey, (req, res) => {
         cacheCategorias.flushAll();
         cacheProductos.flushAll();
-        
+        cacheImagenes.flushAll();
+
         res.json({
             success: true,
-            message: "Caché limpiado correctamente."
+            message: 'Caché limpiado correctamente.'
         });
     });
 }
-

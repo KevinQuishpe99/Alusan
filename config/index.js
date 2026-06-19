@@ -25,12 +25,15 @@ export const IMAGE_EMERGENCY_SIZE = entero(process.env.IMAGE_EMERGENCY_SIZE, 72)
 export const IMAGE_EMERGENCY_QUALITY = entero(process.env.IMAGE_EMERGENCY_QUALITY, 28);
 export const MAX_IMAGE_RESPONSE_BYTES = entero(process.env.MAX_IMAGE_RESPONSE_BYTES, 3 * 1024 * 1024);
 
-export const MAX_CONCURRENT_REQUESTS = entero(process.env.MAX_CONCURRENT_REQUESTS, isProd ? 4 : 12);
-export const MAX_CONCURRENT_COMPRESSION = entero(process.env.MAX_CONCURRENT_COMPRESSION, isProd ? 2 : 6);
-export const MAX_CONCURRENT_EXISTENCIAS = entero(process.env.MAX_CONCURRENT_EXISTENCIAS, isProd ? 6 : 20);
-export const HIDRATACION_BATCH_SIZE = entero(process.env.HIDRATACION_BATCH_SIZE, isProd ? 4 : 8);
-export const EXISTENCIAS_BATCH_SIZE = entero(process.env.EXISTENCIAS_BATCH_SIZE, isProd ? 12 : 24);
-export const COMPRESSION_BATCH_SIZE = entero(process.env.COMPRESSION_BATCH_SIZE, isProd ? 4 : 12);
+export const MAX_CONCURRENT_REQUESTS = entero(process.env.MAX_CONCURRENT_REQUESTS, isProd ? 2 : 12);
+export const MAX_CONCURRENT_COMPRESSION = entero(process.env.MAX_CONCURRENT_COMPRESSION, isProd ? 1 : 6);
+export const MAX_CONCURRENT_EXISTENCIAS = entero(process.env.MAX_CONCURRENT_EXISTENCIAS, isProd ? 4 : 20);
+export const HIDRATACION_BATCH_SIZE = entero(process.env.HIDRATACION_BATCH_SIZE, isProd ? 1 : 8);
+export const EXISTENCIAS_BATCH_SIZE = entero(process.env.EXISTENCIAS_BATCH_SIZE, isProd ? 8 : 24);
+export const COMPRESSION_BATCH_SIZE = entero(process.env.COMPRESSION_BATCH_SIZE, isProd ? 1 : 12);
+export const CACHE_MAX_CATALOG_KEYS = entero(process.env.CACHE_MAX_CATALOG_KEYS, isProd ? 6 : 50);
+export const CACHE_MAX_IMAGENES_KEYS = entero(process.env.CACHE_MAX_IMAGENES_KEYS, isProd ? 200 : 1000);
+export const NODE_HEAP_MB = entero(process.env.NODE_HEAP_MB, isProd ? 384 : 512);
 export const IMAGE_REQUEST_TIMEOUT = entero(process.env.IMAGE_REQUEST_TIMEOUT, 10000);
 export const PRODUCTOS_CONSULTA_TIMEOUT = entero(process.env.PRODUCTOS_CONSULTA_TIMEOUT, 60000);
 

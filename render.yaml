@@ -6,6 +6,8 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384"
       - key: PERSEO_API_KEY
         sync: false
       - key: API_KEY
@@ -22,8 +24,12 @@ services:
         value: "21600"
       - key: CACHE_TTL_PRODUCTOS
         value: "14400"
+      - key: CACHE_MAX_CATALOG_KEYS
+        value: "6"
+      - key: CACHE_MAX_IMAGENES_KEYS
+        value: "200"
       - key: CACHE_CONTROL_PRODUCTOS
-        value: "60"
+        value: "300"
       - key: DEFAULT_INCLUIR_IMAGENES
         value: "true"
       - key: DEFAULT_MAX_IMAGENES
@@ -31,14 +37,14 @@ services:
       - key: DEFAULT_TARIFAS_RESUMIDAS
         value: "true"
       - key: MAX_CONCURRENT_REQUESTS
-        value: "4"
-      - key: MAX_CONCURRENT_COMPRESSION
         value: "2"
+      - key: MAX_CONCURRENT_COMPRESSION
+        value: "1"
       - key: MAX_CONCURRENT_EXISTENCIAS
-        value: "6"
+        value: "4"
       - key: HIDRATACION_BATCH_SIZE
-        value: "4"
+        value: "1"
       - key: EXISTENCIAS_BATCH_SIZE
-        value: "12"
+        value: "8"
       - key: COMPRESSION_BATCH_SIZE
-        value: "4"
+        value: "1"
